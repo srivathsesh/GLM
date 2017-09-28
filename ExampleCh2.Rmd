@@ -1,0 +1,102 @@
+---
+title: "Chapter 2"
+author: "Sri Seshadri"
+date: "9/24/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F)
+```
+
+## Repreoducing the example in page 39
+
+Let's read in the data and prepare the data for analysis. 
+
+```{r, message=F}
+
+GSS96 <- read.csv(file = 'gss96.csv')
+
+```
+
+## Relevant EDA plot
+
+We find that the response variable is not continuous variable. But still pretend that it is... Why?? because the because the book does ... :). 
+
+```{r, fig.cap='Histogram of Attendance'}
+# plot the response variable
+hist(GSS96$ATTEND)
+
+```
+
+Also, we see the data has a bunch of missing values, wonder how did the book example dealt with it? See table below. The number of the observations in Example 2.1 in page 39 has 2614. This does not add up with the one in the data set provided in the course shell. Are we using the same data set?
+
+```{r}
+library(mosaic)
+sanitycheck <- do.call(rbind,dfapply(GSS96,favstats, select = is.numeric))
+# Round 
+sanitycheck <- round(sanitycheck,2)
+knitr::kable(sanitycheck, caption = "Data sanity check for GSS96")
+
+```
+
+## Data manipulation.
+
+Well, I'll remove the missing values from the data... I'll use the complete cases for undertanding. Still feeling uneasy what the book and the data I picked doesn't agree.
+
+```{r}
+# Get rid of ID column.
+GSS96 <- GSS96[complete.cases(GSS96),-1]
+
+# Get the predictor matrix created
+predictors <- model.matrix(ATTEND ~ ., GSS96)[,-1]
+ATTENDANCE <- GSS96$ATTEND
+
+# The output doesn't look good when I have the predictors and the response as matrices
+GSS96 <- data.frame(cbind(predictors,ATTENDANCE))
+```
+
+## Modeling
+
+Attempting to prove to myself that GLM with gaussian distribution and identity link assumption, is same as ther OLS and try interpret the output of the GLM model. Compare the Residuals deviance (GLM) and residual Sum of squares (OLS). 
+
+```{r}
+# Let do the glm model with link function being identity
+
+glm.identity <- glm(ATTENDANCE ~ ., family = gaussian(), data = GSS96)
+
+summary(glm.identity)
+anova(glm.identity)
+```
+
+```{r}
+OLS <- lm(data = GSS96, formula = ATTENDANCE ~ .)
+summary(OLS)
+anova(OLS)
+```
+
+### Let's use gender, race and educate as the predictors
+
+```{r}
+model1 <- glm(ATTENDANCE ~ GENDER + RACE + EDUCATE, data = GSS96, family = gaussian())
+summary(model1)
+paste('BIC is :', BIC(model1))
+```
+
+### Adding prayer as predictor to model1
+
+```{r}
+model2 <- glm(ATTENDANCE ~ GENDER + RACE + EDUCATE + PRAYER, data = GSS96, family = gaussian())
+summary(model2)
+paste('BIC is :', BIC(model2))
+```
+
+### Finally the intercept only mode
+
+```{r}
+model3 <- glm(ATTENDANCE ~ 1, data = GSS96, family = gaussian())
+summary(model3)
+```
+

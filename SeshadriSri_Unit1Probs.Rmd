@@ -1,0 +1,253 @@
+---
+title: "Unit 1 Assignment"
+author: "Sri Seshadri"
+date: "9/24/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+library(magrittr)
+```
+
+## Chapter 1. Question 1
+
+a. Figure 1 shows the sctterplot of GPA vs SAT-Quant. There appears to be a linear relationship between the two variables. However the observations 2 and 5 in the plot appear to be influential points. If the two poitns are removed from the data, the straight line fit would have a steeper slope. Further analysis of the model is in below sections.
+
+```{r fig.cap= 'Scatterplot of GPA vs SAT-Quant', fig.height=3, fig.width=4}
+# read data in
+
+GPA <- readr::read_csv(file = 'gpa.csv')
+GPA1 <- head(GPA,8)
+# GPA1 <- GPA1[c(-2,-5),] # To show that observations 2 and 5 are influential points
+library(ggplot2)
+ggplot(data = GPA1, mapping = aes(x = SAT_QUAN, y = GPA)) + geom_point() + geom_smooth(method = 'lm',se = F) + theme_classic()
+
+# Model for question b
+model1.lm <- lm(data = GPA1, formula = GPA ~ SAT_QUAN)
+coefs <- round(coefficients(model1.lm),2)
+signs <- ifelse(sign(coefs)==1,"+", "-")
+Betas <- paste(abs(coefs[2:length(coefs)]),"*",'SAT_QUANT')
+model1eqn <- paste("GPA = ",paste(coefs[1],paste(paste(signs[2:2], Betas),collapse = " ")))
+model1data <- broom::augment(model1.lm)
+```
+
+
+
+
+b. The GPA is modeled as :
+
+__`r model1eqn`__
+
+   With Intercept as `r coefs[1]` and slope as `r coefs[2]`
+   
+   
+   
+c. The Predicted values and the residuals are shown in the table below.
+
+```{r}
+df <- model1data[,c('GPA','SAT_QUAN','.fitted','.resid')]
+knitr::kable(df,caption = "Predicted values and residuals")
+z <- anova(model1.lm)
+SSE <- z$`Sum Sq`[2]
+```
+
+The R Squared value is found to be `r mosaic::rsquared(model1.lm)` and SSE = `r SSE`
+
+d. Figure 2 shows the residuals plot against the predicted values of GPA. The residuals appear random.
+
+
+```{r, fig.cap= "Residuals vs predicted GPA",fig.height=3, fig.width=4,fig.align='center'}
+ggplot(data = model1data, mapping = aes(x = .fitted, y = .resid)) + geom_point() + geom_smooth(method = 'lm',se = F) + theme_bw()
+
+```
+
+
+## Chapter 1. Question 2
+
+Figure 3 shows the relationship between quantitative SAT score against GPA for the full data. Observation 2 now doesn't seem as bad as an influential point in the context of the full data.
+
+```{r,fig.cap= 'Scatterplot of GPA vs SAT-Quant - Full data',fig.height=3, fig.width=4}
+ggplot(data = GPA, mapping = aes(x = SAT_QUAN, y = GPA)) + geom_point() + geom_smooth(method = 'lm',se = F) + theme_classic()
+
+model2.lm <- lm(data = GPA, formula = GPA ~ SAT_QUAN)
+coefs_2 <- round(coefficients(model2.lm),2)
+signs_2 <- ifelse(sign(coefs_2)==1,"+", "-")
+Betas_2 <- paste(abs(coefs_2[2:length(coefs_2)]),"*",'SAT_QUANT')
+model2eqn <- paste("GPA = ",paste(coefs_2[1],paste(paste(signs_2[2:2], Betas_2),collapse = " ")))
+model2data <- broom::augment(model2.lm)
+
+```
+
+Below is the summary for the model :
+
+__`r model2eqn`__
+
+```{r}
+summary(model2.lm)
+anova(model2.lm)
+z2 <- anova(model2.lm)
+SSE2 <- z2$`Sum Sq`[2]
+MSE2 <- SSE2/nrow(model2data)
+modelcomparison <- data.frame(Question = c(1,2),model = c(model1eqn, model2eqn), RSquared = c(mosaic::rsquared(model1.lm),mosaic::rsquared(model2.lm)), MSE = c(SSE/nrow(GPA1), MSE2),First_8obs_MSE = c(SSE/nrow(GPA1), sum(model2data$.resid[8]^2)/8) )
+```
+
+
+
+Figure 4 shows the residual analysis of the model above. The residuals are fairly normally distributed and there is a hint of unequal variance in the residuals. May be we are missing another predictor. The next section will explore additional predictors.
+
+```{r , fig.cap= 'Residuals of model with full data', fig.align='center',fig.height=4}
+par(mfrow = c(1,2))
+qqnorm(y=model2.lm$residuals)
+qqline(y=model2.lm$residuals)
+plot(y = model2.lm$residuals,x = model2.lm$model$GPA, xlab = 'GPA', ylab = 'Residuals',main = 'GPA vs Residuals')
+
+```
+
+\pagebreak
+
+### Model comparison
+
+The models in question 1 and 2 are cpmpared in the table below. We see that model for question 1 has a better R Squared value and MSE. However, the second model fits the data in question 1 better with much lower MSE. As mentioned above, the residuals for model 2 appear to have non-constant variance. May be another predictor is required. 
+
+```{r}
+pander::pandoc.table(modelcomparison,caption = "Model comparison")
+```
+\pagebreak 
+
+## Chapter 1 Question 3
+
+a. Figure 5 shows the relationship between GPA and Highschool English scores. There isn't a strong linear relationship.
+
+```{r, fig.cap='GPA vs HighSchool English', fig.height=3, fig.width=4}
+model3a <- lm(data = GPA, formula = GPA ~ HS_ENGL)
+coefs_3a <- round(coefficients(model3a),2)
+signs_3a <- ifelse(sign(coefs_3a)==1,"+", "-")
+Betas_3a <- paste(abs(coefs_3a[2:length(coefs_3a)]),"*",'HS_ENGL')
+model3aeqn <- paste("GPA = ",paste(coefs_3a[1],paste(paste(signs_3a[2:2], Betas_3a),collapse = " ")))
+model3adata <- broom::augment(model3a)
+
+ggplot(data = GPA, mapping = aes(x = HS_ENGL, y = GPA)) + geom_point() + theme_bw() + geom_smooth(method = 'lm',se = F)
+```
+
+Below is the summary of the model:
+
+__`r model3aeqn`__
+
+```{r}
+summary(model3a)
+anova(model3a)
+```
+
+### b. Using Highschool english and SAT verbal scores as predictors
+
+It'll be useful to understand the correlations that exist amongst the preditors. To better interpret the model in the context of variability of the regression coefficents (when the predictors are correlated). Figure 6 shows the correalations plot of GPA data. It's seen that the highschool english and verbal SAT scores are not highly correlated.
+
+```{r, fig.cap='Correlation Plot', fig.width=4,fig.height=3}
+correlations <- cor(GPA)
+corrplot::corrplot(correlations,tl.cex = 1)
+```
+
+```{r, fig.cap='Relationship between predictors',fig.height=3, fig.width=4}
+p <- ggplot(data = GPA, mapping = aes(x = SAT_VERB, y = GPA)) + geom_point() + geom_smooth(method = 'lm',se = F) + theme_classic()
+p2 <- ggplot(data = GPA, mapping = aes(x = SAT_VERB, y = HS_ENGL)) + geom_point() + geom_smooth(method = 'lm',se = F) + theme_classic()
+library(gridExtra)
+grid.arrange(p,p2, ncol = 2)
+```
+
+```{r}
+model3b <- lm(GPA~HS_ENGL + SAT_VERB, data = GPA)
+Predictors <- c('HS_ENGL','SAT_VERB')
+model3bdata <- broom::augment(model3b)
+coefs3b <- round(coefficients(model3b),2)
+signs3b <- ifelse(sign(coefs3b)==1,"+", "-")
+Betas3b <- paste(abs(coefs3b[2:length(coefs3b)]),"*",Predictors)
+model3beqn <- paste("GPA = ",paste(coefs3b[1],paste(paste(signs3b[2:length(signs3b)], Betas3b),collapse = " "))) 
+
+```
+
+Below is the summary for the model :
+
+__`r model3beqn`__  
+
+The model has an adjusted R squared of 51%, which is about half of the variation. Not a good explanatory model.The residuals vs actuals have a non-random relationship. The model might be missing a predictor. 
+
+```{r}
+summary(model3b)
+anova(model3b)
+
+```
+
+\pagebreak
+
+```{r, fig.cap='Residual analysis'}
+layout(matrix(c(1,2,3,4),byrow = 2, nrow = 2, ncol = 2))
+qqnorm(model3bdata$.resid)
+qqline(model3bdata$.resid)
+plot(x = model3bdata$GPA, y = model3bdata$.resid, xlab = 'GPA', ylab = 'Residuals')
+plot(x = model3bdata$SAT_VERB, y = model3bdata$.resid, xlab = 'GPA', ylab = 'Residuals')
+plot(x = model3bdata$HS_ENGL, y = model3bdata$.resid, xlab = 'GPA', ylab = 'Residuals')
+# lattice::xyplot(.resid~GPA,data = model3bdata,type =c("p","r"))
+# plot.new()
+# qqnorm(model3bdata$.resid)
+# lattice::xyplot(.resid~HS_ENGL,data = model3bdata,type =c("p","r"))
+# lattice::xyplot(.resid~SAT_VERB,data = model3bdata,type =c("p","r"))
+# layout(matrix(c(1,2,3,4), 2, 2, byrow = TRUE))
+```
+
+
+```{r}
+model3c <- lm(GPA~HS_ENGL + SAT_VERB + SAT_QUAN, data = GPA)
+Predictors <- c('HS_ENGL','SAT_VERB','SAT_QUAN')
+model3cdata <- broom::augment(model3c)
+coefs3c <- round(coefficients(model3c),2)
+signs3c <- ifelse(sign(coefs3c)==1,"+", "-")
+Betas3c <- paste(abs(coefs3c[2:length(coefs3c)]),"*",Predictors)
+model3ceqn <- paste("GPA = ",paste(coefs3c[1],paste(paste(signs3c[2:length(signs3c)], Betas3c),collapse = " "))) 
+
+```
+
+### c. Below is the summary for the model, with addition of SAT_QUAN as predictor to the above model in 3b.
+
+__`r model3ceqn`__
+    
+It is seen that the residuals are fairly random and normally distributed. The intercept and HS_ENGL scores from the t -test are statistically insignificant. The SAT scores are key contributors to the model.    
+```{r}
+summary(model3c)
+anova(model3c)
+
+```
+
+```{r,fig.cap = 'Model 3c residual analysis', fig.height=6}
+
+layout(matrix(c(1,1,2,3,4,5),byrow = T, nrow = 3, ncol = 2))
+plot(x = model3cdata$.fitted, y = model3cdata$.resid, xlab = 'GPA', ylab = 'Residuals')
+qqnorm(y = model3c$residuals)
+qqline(model3c$residuals)
+plot(x = model3cdata$HS_ENGL, y = model3cdata$.resid, xlab = 'HS_ENGL', ylab = 'Residuals')
+plot(x = model3cdata$SAT_VERB, y = model3cdata$.resid, xlab = 'SAT_VERB', ylab = 'Residuals')
+plot(x = model3cdata$SAT_QUAN, y = model3cdata$.resid, xlab = 'SAT_QUAN', ylab = 'Residuals')
+```
+
+## Chapter 1 Question 4
+
+### a. 78% of the Highschool english score contributes to the overall GPA at the end of 1st year of college.
+### b. 26% of the SAT quantitative score contributes to the overall GPA at the end of 1st year of college.
+
+## Chapter 1 Question 5
+
+The contribution of highschool english score to 1st year college GPA turned out to be negligible after the inclusion of the SAT scores. From test of individual regression coefficients' significance (t-test) in question 3c, it can be seen that the regression coefficient for HS_ENGL is not statistically different from zero. The t-test results is reproduced below:
+`r summary(model3c)`
+
+However in the absense of SAT scores; the highschool english scores could serve as a predictor for inate intelligence or comprehension skills needed for college. However it turned out that it was not a good predictor with only 37% R-Squared value. The t-test for model 3b is presented here again for comparison.
+
+`r summary(model3a)`
+
+## Chapter 1 Question 6
+
+a. Figure 9 shows the qqplot of residuals, though the residuals are a bit left leaning/skewed; for practical purposes they seem normal. 
+
+```{r}
+plot(model3cdata$.hat)
+```
+
