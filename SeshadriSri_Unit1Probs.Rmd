@@ -94,6 +94,8 @@ modelcomparison <- data.frame(Question = c(1,2),model = c(model1eqn, model2eqn),
 
 
 
+
+
 Figure 4 shows the residual analysis of the model above. The residuals are fairly normally distributed and there is a hint of unequal variance in the residuals. May be we are missing another predictor. The next section will explore additional predictors.
 
 ```{r , fig.cap= 'Residuals of model with full data', fig.align='center',fig.height=4}
@@ -221,7 +223,7 @@ anova(model3c)
 ```{r,fig.cap = 'Model 3c residual analysis', fig.height=6}
 
 layout(matrix(c(1,1,2,3,4,5),byrow = T, nrow = 3, ncol = 2))
-plot(x = model3cdata$.fitted, y = model3cdata$.resid, xlab = 'GPA', ylab = 'Residuals')
+plot(x = model3cdata$.fitted, y = model3cdata$.resid, xlab = 'fitted GPA', ylab = 'Residuals')
 qqnorm(y = model3c$residuals)
 qqline(model3c$residuals)
 plot(x = model3cdata$HS_ENGL, y = model3cdata$.resid, xlab = 'HS_ENGL', ylab = 'Residuals')
@@ -231,23 +233,97 @@ plot(x = model3cdata$SAT_QUAN, y = model3cdata$.resid, xlab = 'SAT_QUAN', ylab =
 
 ## Chapter 1 Question 4
 
-### a. 78% of the Highschool english score contributes to the overall GPA at the end of 1st year of college.
-### b. 26% of the SAT quantitative score contributes to the overall GPA at the end of 1st year of college.
+a. 78% of the Highschool english score contributes to the overall GPA at the end of 1st year of college.
+b. 26% of the SAT quantitative score contributes to the overall GPA at the end of 1st year of college.
 
 ## Chapter 1 Question 5
 
 The contribution of highschool english score to 1st year college GPA turned out to be negligible after the inclusion of the SAT scores. From test of individual regression coefficients' significance (t-test) in question 3c, it can be seen that the regression coefficient for HS_ENGL is not statistically different from zero. The t-test results is reproduced below:
-`r summary(model3c)`
 
-However in the absense of SAT scores; the highschool english scores could serve as a predictor for inate intelligence or comprehension skills needed for college. However it turned out that it was not a good predictor with only 37% R-Squared value. The t-test for model 3b is presented here again for comparison.
+```{r}
 
-`r summary(model3a)`
+summary(model3c)
+
+```
 
 ## Chapter 1 Question 6
 
-a. Figure 9 shows the qqplot of residuals, though the residuals are a bit left leaning/skewed; for practical purposes they seem normal. 
+a. Figure 9 shows the qqplot of residuals, though the residuals are a bit left leaning/skewed; for practical purposes they seem normal.
 
-```{r}
-plot(model3cdata$.hat)
+b. Figure 9 shows the raw residuals against fitted GPA. The residuals look to have a cyclical pattern. The same plot is reproduced below (Figure 10) with spline. However this may be purely random occurance, more sampling may help to confirm the pattern. The raw residuals can be misleading if there is an influential point that is influencing the regression coefficients to pull the fit closer to itself. Looking at studentized residuals can be helpful; shown in the right panel of figure 10. 
+
+The two plots in figure 10 are not different. This indicates that there aren't influential points. It'll be interesting to look at the Cook's distance.
+
+```{r, fig.cap = 'fitted vs residuals',fig.height=4}
+res1 <- ggplot(data = model3cdata, mapping = aes(x = .fitted, y = .resid)) + geom_point() + geom_smooth() + theme_bw()
+model3cdata$student.res <- rstudent(model3c)
+res2 <- ggplot(data = model3cdata, mapping = aes(x = .fitted, y = student.res)) + geom_point() + geom_smooth() + theme_bw()
+grid.arrange(res1,res2,ncol=2)
 ```
+
+\pagebreak
+
+
+c.  The distribution of the studentized residuals, leverage and cook's distance is shown below.
+
+    The studentized residuals do not show outliers. The residuals are within +/- 2 standard deviations. Observation 17 has leverage of 0.5 which is greater than 2p/n = 0.4. This shows that this point is outlier in the x space. However the Cook's distance show that there is no effect of beta coefficients. Obervation 17 is more a leverage point and not an influencial point. 
+ 
+ \pagebreak 
+ 
+```{r, fig.cap="Leverage and Influence analysis",fig.height=6}
+par(mfrow= c(3,2))
+hist(model3cdata$student.res, xlab = "stud.Residuals", main = "")
+plot(model3cdata$.hat, ylab = 'Leverage')
+hist(model3cdata$.hat,xlab = 'leverage', main = "")
+plot(model3c, which=4, cook.levels = 0.1666, main = "")
+hist(model3cdata$.cooksd,xlab = "Cook's Distance", main= "")
+```
+
+\pagebreak
+
+## Chapter 2 Question 1
+
+a. Poisson distribution
+b. Binomial distribution
+c. Normal distribution ? 
+d. Multinomial
+e. Binomial
+f. Multinomial
+g. negative binomial
+
+
+## Chapter 2 Question 2
+
+a. Poisson distribution  - Natural logrithm link
+b. Binomial distribution  - Logit 
+c. Normal distribution    -  Identity
+d. Multinomial            -  generalized logit 
+e. Binomial               - logit
+f. Multinomial            -  generalized logit 
+g. negative binomial      - Logit
+
+
+## Chapter 2 Question 3
+
+1. Expected value = `r 1500*0.65`; Variance = `r 1500*0.65 * (1 - 0.65)` \break
+2. Expected employed full time = `r 1500*0.65`  ; Variance = `r 0.55 * 200 * (1-0.55)`\break
+   Expected employed part time =  `r 0.15 * 200` ; Variance = `r 0.15 * 200 * (1-0.15)`\break
+   Expected unemployed         =  `r 0.10 * 200` ; Variance = `r 0.10 * 200 * (1-0.10)`\break
+   Expected non-participants   = `r 0.20 * 200` ; Variance =  `r 0.20 * 200 * (1-0.20)`\break
+3. 
+```{r}
+accidents <- data.frame(Number = 0:7, Frequency = c(121,199,21,12,5,4,2,1))
+accidents <- accidents %>% 
+              dplyr::mutate(total = Number * Frequency)
+mean_accidents <- sum(accidents$total)/sum(accidents$Frequency)
+accidents <- accidents %>% 
+                dplyr::mutate(SS = (Number - mean_accidents)^2 * Frequency)
+Variance <- sum(accidents$SS) / (sum(accidents$Frequency) -1 )
+Question <- c('a','b.1','b.2','b.3','b.4','c.1','c.2','d')
+What <- c('Alcohol use', 'employed full time','employed part time','unemployed','non-participants','Low-Self Esteem', 'High-Self Esteem', 'Accidents per day')
+Expected <- c(1500*0.65,1500*0.65,0.15 * 200,0.10 * 200,0.20 * 200,850*0.45, 850*0.55,round(mean_accidents,2))
+Variance <- c(1500*0.65 * (1 - 0.65),0.55 * 200 * (1-0.55),0.15 * 200 * (1-0.15),0.10 * 200 * (1-0.10),0.20 * 200 * (1-0.20),850*0.45*0.55,850*0.45*0.55,round(Variance,2))
+response <- data.frame(Question,What, Expected,Variance)
+```
+
 
