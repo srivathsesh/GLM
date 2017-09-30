@@ -2,8 +2,12 @@
 title: "Unit 1 Assignment"
 author: "Sri Seshadri"
 date: "9/24/2017"
-output: pdf_document
+output: 
+  pdf_document:
+      toc: true
+      toc_depth: 2
 ---
+\pagebreak 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
@@ -305,12 +309,7 @@ g. negative binomial      - Logit
 
 ## Chapter 2 Question 3
 
-1. Expected value = `r 1500*0.65`; Variance = `r 1500*0.65 * (1 - 0.65)` \break
-2. Expected employed full time = `r 1500*0.65`  ; Variance = `r 0.55 * 200 * (1-0.55)`\break
-   Expected employed part time =  `r 0.15 * 200` ; Variance = `r 0.15 * 200 * (1-0.15)`\break
-   Expected unemployed         =  `r 0.10 * 200` ; Variance = `r 0.10 * 200 * (1-0.10)`\break
-   Expected non-participants   = `r 0.20 * 200` ; Variance =  `r 0.20 * 200 * (1-0.20)`\break
-3. 
+
 ```{r}
 accidents <- data.frame(Number = 0:7, Frequency = c(121,199,21,12,5,4,2,1))
 accidents <- accidents %>% 
@@ -324,6 +323,39 @@ What <- c('Alcohol use', 'employed full time','employed part time','unemployed',
 Expected <- c(1500*0.65,1500*0.65,0.15 * 200,0.10 * 200,0.20 * 200,850*0.45, 850*0.55,round(mean_accidents,2))
 Variance <- c(1500*0.65 * (1 - 0.65),0.55 * 200 * (1-0.55),0.15 * 200 * (1-0.15),0.10 * 200 * (1-0.10),0.20 * 200 * (1-0.20),850*0.45*0.55,850*0.45*0.55,round(Variance,2))
 response <- data.frame(Question,What, Expected,Variance)
+knitr::kable(response)
 ```
 
+## Chapter 2 Question 4
 
+```{r,echo=T}
+p <- 0.4
+n <- 30
+r <- 12
+NBmean <- r/p
+NBVar <- r*(1-p)/p^2
+
+p30 <- choose(n-1,r-1)*p^r*(1-p)^(n-r)
+
+```
+
+The computation formula for mean, variance and probability  can be see in the R Code above.
+
+```{r}
+df <- data.frame(Mean = NBmean, Variance = NBVar, `Prob of Success by reaching 30` = round(p30,2))
+knitr::kable(df)
+```
+
+## Chapter 2 Question 5
+
+```{r}
+p <- (1:4)/10
+probs <- function(p,n = 6, i = 2) {
+  dbinom(i,n,p)
+}
+probabilities <- sapply(p,probs)
+df5 <- data.frame(p = p, `probability when i equals 2` = round(probabilities,2))
+knitr::kable(df5)
+```
+
+p = 0.3 is the most likely value of p
