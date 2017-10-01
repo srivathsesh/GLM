@@ -359,3 +359,23 @@ knitr::kable(df5)
 ```
 
 p = 0.3 is the most likely value of p
+
+## Chapter 2 Question 6
+
+```{r}
+usdata <- read.csv('usdata.csv')
+null.lm <- glm(formula = VIOLRATE ~ 1, data = usdata)
+DevianceMc <- deviance(null.lm)
+ln_LMc <- DevianceMc/-2
+summary(null.lm)
+anova(null.lm)
+
+model2.6.lm <- glm(formula = VIOLRATE ~ UNEMPRAT + DENSITY + GSPROD, data = usdata)
+summary(model2.6.lm)
+
+DevianceMu <- deviance(model2.6.lm)
+ln_LMu <- DevianceMu/-2
+Rsq_McF <-  1 - (ln_LMu - 4)/ln_LMc
+
+```
+

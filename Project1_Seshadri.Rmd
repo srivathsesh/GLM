@@ -1,0 +1,18 @@
+---
+title: "Project1"
+author: "Sri Seshadri"
+date: "9/30/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+MB <- read.csv('MoneyBall.csv')
+library(mosaic)
+sanitycheck <- do.call(rbind,dfapply(MB,favstats, select = is.numeric))
+corrplot::corrplot(cor(MB))
+```
+
