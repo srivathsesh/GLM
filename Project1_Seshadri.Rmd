@@ -6,13 +6,91 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+library(magrittr)
+library(dplyr)
+```
+
+## 1. Introduction
+
+
+
+## 2. Exploratory Data Analysis (EDA)
+
+
+### 2.1 About the data
+
+
+```{r}
+# Read the data in
+MB <- read.csv('MoneyBall.csv')
+cols <- colnames(MB)
+library(mosaic)
+# Compute overall statistic and show missing values
+sanitycheck <- do.call(rbind,dfapply(MB,favstats, select = is.numeric))
+rowname <- rownames(sanitycheck)
+sanitycheck <- sanitycheck %>%  mutate(cv = sd/mean)
+rownames(sanitycheck) <- rowname
+knitr::kable(round(sanitycheck,2), caption = "Summary Stats and missing values")
+```
+
+### 2.2 Missing data
+
+```{r, fig.width=8}
+# indicator variables for record missing
+MB <- MB %>% 
+        mutate(Missing_BatSO = as.logical(ifelse(is.na(TEAM_BATTING_SO),1,0))) %>%
+        mutate(Missing_BasSB = as.logical(ifelse(is.na(TEAM_BASERUN_SB),1,0))) %>% 
+        mutate(Missing_BasCS = as.logical(ifelse(is.na(TEAM_BASERUN_CS),1,0))) %>% 
+        mutate(Missing_PitSO = as.logical(ifelse(is.na(TEAM_PITCHING_SO),1,0))) %>% 
+        mutate(Missing_FieldDP = as.logical(ifelse(is.na(TEAM_FIELDING_DP),1,0)))  
+MB$Filter <- as.logical(ifelse(rowSums(MB[,18:22]) > 0 ,1, 0))
+library(ggplot2)
+# p0 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = Missing_BatSO, fill = Missing_BatSO)) + geom_histogram(alpha = 0.5)
+
+p1 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = Filter, fill = Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+
+p2 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_SO, color = Filter, fill = Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+gridExtra::grid.arrange(p1,p2,ncol = 2)
+
+```
+
+### 2.3 Relationships among variables
+
+
+```{r}
+corrplot::corrplot(cor(MB[complete.cases(MB),cols[-1]]),tl.cex = 0.8)
 ```
 
 ```{r}
-MB <- read.csv('MoneyBall.csv')
-library(mosaic)
-sanitycheck <- do.call(rbind,dfapply(MB,favstats, select = is.numeric))
-corrplot::corrplot(cor(MB))
+ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Filter)) + geom_point()
+ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, fill = Filter, color = Filter)) + geom_histogram(alpha = 0.5) + facet_grid(Filter ~ .)
+
+MB <- MB %>% 
+  dplyr::mutate(Pitch_H_Outlier = as.logical(ifelse(TEAM_PITCHING_H >= 1890, 1,0))) 
+MB_test <- MB %>% filter(Filter == F)
+  ggplot(data = MB_test,mapping = aes(x = TEAM_PITCHING_H, color = Pitch_H_Outlier, fill = Pitch_H_Outlier)) + geom_histogram(alpha = 0.5) + theme_bw()
+  
+ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
+
+ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_SO, y = TEAM_BATTING_SO, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
+
+ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_BB, y = TEAM_BATTING_BB, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
+
+ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
 ```
+
+### 2.2.1 Do we throw away a lot of data?
+
+
+
+```{r}
+MB <- MB  %>% 
+    mutate(BatHR_Filter = as.logical(ifelse(TEAM_BATTING_HR <= 59, 1,0))) %>% 
+    mutate(BatSO_Filter = as.logical(ifelse(TEAM_BATTING_SO <= 250, 1,0)))
+
+MB$HRSO_Filter <- as.logical(ifelse(rowSums(MB[,c('BatHR_Filter','BatSO_Filter')]) > 0 ,1, 0))
+
+
+ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
 
