@@ -61,7 +61,7 @@ gridExtra::grid.arrange(p1,p2,ncol = 2)
 
 
 ```{r}
-cordata <- MB %>% select(cols[c(-1,-11)]) 
+cordata <- MB %>% dplyr::select(cols[c(-1,-11)]) 
 cordata <- cordata[complete.cases(cordata),]
 corrplot::corrplot(cor(cordata),tl.cex = 0.8)
 ```
@@ -90,20 +90,28 @@ ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, 
 
 ```
 
-### 2.4  Do we throw away a lot of data?
 
-#### 2.4.1  Indicator variables 
+#### 2.3.2  Indicator variables 
 
 ```{r}
 MB <- MB  %>% 
     mutate(BatHR_Filter = as.logical(ifelse(TEAM_BATTING_HR <= 59, 1,0))) %>% 
-    mutate(BatSO_Filter = as.logical(ifelse(TEAM_BATTING_SO <= 250, 1,0)))
+    mutate(BatSO_Filter = as.logical(ifelse(TEAM_BATTING_SO <= 250, 1,0))) %>% 
+    mutate(PitSO_Filter = as.logical(ifelse(TEAM_PITCHING_SO > 2000, 1, 0)))
+
+Pitch_H_outlierT <- MB$INDEX[MB$Pitch_H_Outlier]
+BatSO_Filter_T <- MB$INDEX[MB$BatSO_Filter]
+PitSOFilter_T <- MB$INDEX[MB$PitSO_Filter]
+
+MB <- MB %>% mutate (flag = as.logical(ifelse(INDEX %in% setdiff(setdiff(Pitch_H_outlierT,BatSO_Filter_T), PitSOFilter_T), 1,0)))
 
 MB$HRSO_Filter <- as.logical(ifelse(rowSums(MB[,c('BatHR_Filter','BatSO_Filter')]) > 0 ,1, 0))
 
 
 ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-
+ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = flag)) + geom_point() + theme_bw()
+ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw()
+ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw()
 ```
 
 ## 3.0 Feature selections
@@ -172,6 +180,6 @@ upper2.lm <- lm(data = df2, formula = TARGET_WINS ~ .)
 step2.lm <- stepAIC(lower2.lm, scope = list(upper = formula(upper2.lm), lower = ~1), direction = "both", trace = F)
 summary(step2.lm)
 anova(step2.lm)
-
+plot(step2.lm)
 ```
 
