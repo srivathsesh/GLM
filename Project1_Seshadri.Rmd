@@ -170,6 +170,28 @@ ggplot(data = cordata, mapping = aes(y = TEAM_PITCHING_SO, x = TEAM_BATTING_3B, 
 
 ```
 
+### 3.3 More feature selection - VIF regression
+
+```{r}
+vif.lm <- VIF::vif(df$TARGET_WINS,x)
+vifdata <- data.frame(vif.lm$modelmatrix,scale(df$TARGET_WINS))
+summary(lm(data = vifdata, formula = scale.df.TARGET_WINS. ~ .))
+
+```
+
+
+### 3.4 Random forest
+
+```{r}
+# Split data into training and testing
+cordata <- cordata %>% mutate(ID = 1:nrow(cordata))
+train <- dplyr::sample_frac(cordata,0.7)
+test <- dplyr::anti_join(cordata, train)
+
+
+```
+
+
 ### Impute data
 
 ```{r}
@@ -193,4 +215,6 @@ summary(step2.lm)
 anova(step2.lm)
 plot(step2.lm)
 ```
+
+
 
