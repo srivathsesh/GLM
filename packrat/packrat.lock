@@ -73,6 +73,11 @@ Source: CRAN
 Version: 1.77
 Hash: 08f1f60e1038957030bcd9f4a58d22d8
 
+Package: VIF
+Source: CRAN
+Version: 1.0
+Hash: febc8975039e7276ca3e90edeb5b1532
+
 Package: VIM
 Source: CRAN
 Version: 4.7.0
