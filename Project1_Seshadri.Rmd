@@ -112,6 +112,11 @@ ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color
 ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = flag)) + geom_point() + theme_bw()
 ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw()
 ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw()
+
+ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
 ```
 
 ## 3.0 Feature selections
@@ -174,16 +179,22 @@ grid = 10^seq(10,-2,length = 100)
 lasso.out <- cv.glmnet(x,df$TARGET_WINS,alpha = 1)
 plot(lasso.out)
 lasso.mod <- glmnet(x,df$TARGET_WINS,alpha = 1, lambda = lasso.out$lambda.min)
-# important factors for feature selection or imputation
-names(coef(lasso.mod)[order(abs(round(coef(lasso.mod),3)),decreasing = T),])[1:12]
+
+lasso.lm$anova
 
 # R Squared
 lasso.mod$dev.ratio
 
-ggplot(data = cordata, mapping = aes(y = TEAM_PITCHING_SO, x = TEAM_BATTING_3B, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(y = TEAM_FIELDING_E, x = TEAM_BATTING_3B, color = Pitch_H_Outlier)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-cordata$Pitch_H_Outlier <- as.numeric(cordata$Pitch_H_Outlier)
-summary(lm(data = cordata ,  TARGET_WINS ~ flag + TEAM_FIELDING_E + TEAM_FIELDING_DP + TEAM_BATTING_H  + TEAM_BASERUN_CS ))
+Candidate_Lasso <- names(coef(lasso.mod)[order(abs(round(coef(lasso.mod),3)),decreasing = T),])[2:10]
+formula <- paste("TARGET_WINS ~ ",paste(Candidate_Lasso, collapse = " + "))
+
+lasso.selection.lm <- stepAIC(lm(TARGET_WINS ~ 1, data = cordata), scope = list(lower = ~1, upper = formula), direction = "both", trace = F) 
+summary(lasso.selection.lm)
+car::vif(lasso.selection.lm)
+
+
+# cordata$Pitch_H_Outlier <- as.numeric(cordata$Pitch_H_Outlier)
+# summary(lm(data = cordata ,  TARGET_WINS ~ flag + TEAM_FIELDING_E + TEAM_FIELDING_DP + TEAM_BATTING_H  + TEAM_BASERUN_CS ))
 ```
 
 ### 3.3 More feature selection - VIF regression
@@ -194,7 +205,7 @@ vifdata <- data.frame(vif.lm$modelmatrix,scale(df$TARGET_WINS))
 vif.lm$select
 
 summary(lm(data = vifdata, formula = scale.df.TARGET_WINS. ~ .))
-
+testmoel <- lm(formula = )
 ```
 
 ### 3.4 Partial Least Squares (PLS) Regression
