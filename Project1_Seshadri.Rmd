@@ -113,15 +113,8 @@ ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color
 ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw()
 ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw()
 
-ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+
 ```
-
-## 3.0 Feature selections
-
-What are the important features amongst complete cases?
 
 ```{r}
 reqcols <- colnames(MB)[c(-1,-11,-18:-23,-25,-29)]
@@ -133,7 +126,17 @@ cordata <- cordata[reqrows,]
 cordata <- cordata %>% 
             dplyr::filter(BatSO_Filter == !T) %>% 
             dplyr::filter(PitSO_Filter == !T)
+ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
 ```
+
+## 3.0 Feature selections
+
+What are the important features amongst complete cases?
+
+
 
 Would a simple model work?
 
@@ -180,7 +183,22 @@ lasso.out <- cv.glmnet(x,df$TARGET_WINS,alpha = 1)
 plot(lasso.out)
 lasso.mod <- glmnet(x,df$TARGET_WINS,alpha = 1, lambda = lasso.out$lambda.min)
 
-lasso.lm$anova
+xl <- model.matrix(TARGET_WINS ~., data = MB2)[,-1]
+colnames(xl) <- gsub("TRUE", "",colnames(xl))
+colnames(MB2) <- gsub("TRUE", "",colnames(MB2))
+reqcols_l <- intersect(colnames(x), colnames(xl))
+xl2 <- xl[,reqcols_l]
+lasso.pred <- predict(lasso.mod,s = lasso.out$lambda.min,newx = as.matrix(MB2[,reqcols_l]))
+MB2$pred <- as.numeric(lasso.pred)
+
+ MB2 %>% 
+   mutate(resid = TARGET_WINS - pred) %>% 
+   ggplot(mapping = aes(x = TARGET_WINS, y = resid, color = Pitch_H_Outlier)) + geom_point() + geom_smooth(method = "lm") + theme_bw()
+ 
+ MB2 %>% 
+   dplyr::filter(Pitch_H_Outlier == F) %>% 
+  mutate(resid = TARGET_WINS - pred) %>% 
+  ggplot(mapping = aes(x = TARGET_WINS, y = resid, color = Pitch_H_Outlier)) + geom_point() + geom_smooth(method = "lm") + theme_bw()
 
 # R Squared
 lasso.mod$dev.ratio
@@ -197,34 +215,38 @@ car::vif(lasso.selection.lm)
 # summary(lm(data = cordata ,  TARGET_WINS ~ flag + TEAM_FIELDING_E + TEAM_FIELDING_DP + TEAM_BATTING_H  + TEAM_BASERUN_CS ))
 ```
 
-### 3.3 More feature selection - VIF regression
 
-```{r}
-vif.lm <- VIF::vif(df$TARGET_WINS,x)
-vifdata <- data.frame(vif.lm$modelmatrix,scale(df$TARGET_WINS))
-vif.lm$select
-
-summary(lm(data = vifdata, formula = scale.df.TARGET_WINS. ~ .))
-testmoel <- lm(formula = )
-```
-
-### 3.4 Partial Least Squares (PLS) Regression
+### 3.3 Partial Least Squares (PLS) Regression
 
 How to add indicator variables to the model?
 
 ```{r}
-plsdf <- data.frame(x[,-15:-18], cordata$TARGET_WINS)
-names(plsdf)[15] <- "TARGET_WINS"
+plsdf <- data.frame(x[,-16:-18], cordata$TARGET_WINS)
+plsdf <- plsdf %>% dplyr::filter(Pitch_H_Outlier == F)
+colnames(plsdf)[16] <- "TARGET_WINS"
+outliers <- plsdf[,15]
+plsdf <- plsdf[,-15]
 pls.lm <- pls::plsr(TARGET_WINS ~ ., data  = plsdf, scale = T, validation = "CV")
 
-pls::validationplot(pls.lm, val.type = "RMSEP")
+library(pls)
+validationplot(pls.lm)
 summary(pls.lm)
+library(caret)
 plot(varImp(pls.lm),top = 10)
 plot(pls::R2(pls.lm))
+
+pls.df <- data.frame(pls.lm$scores[,1:4],plsdf$TARGET_WINS)
+colnames(pls.df)[5] <- "TARGET_WINS"
+
+pls.lm.2 <- lm(data = pls.df,formula = TARGET_WINS ~ . )
+
+plot(pls.lm.2)
+summary(pls.lm.2)
+anova(pls.lm.2)
 ```
 
 
-### 3.5 Random forest
+### 3.4 Random forest
 
 ```{r}
 # Split data into training and testing
