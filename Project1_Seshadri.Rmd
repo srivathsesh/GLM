@@ -46,13 +46,13 @@ MB <- MB %>%
         mutate(Missing_BasCS = as.logical(ifelse(is.na(TEAM_BASERUN_CS),1,0))) %>% 
         mutate(Missing_PitSO = as.logical(ifelse(is.na(TEAM_PITCHING_SO),1,0))) %>% 
         mutate(Missing_FieldDP = as.logical(ifelse(is.na(TEAM_FIELDING_DP),1,0)))  
-MB$Filter <- as.logical(ifelse(rowSums(MB[,18:22]) > 0 ,1, 0))
+MB$Missing <- as.logical(ifelse(rowSums(MB[,18:22]) > 0 ,1, 0))
 library(ggplot2)
 # p0 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = Missing_BatSO, fill = Missing_BatSO)) + geom_histogram(alpha = 0.5)
 
-p1 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = Filter, fill = Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+p1 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = Missing, fill = Missing)) + geom_histogram(alpha = 0.5) + theme_bw()
 
-p2 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_SO, color = Filter, fill = Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+p2 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_SO, color = Missing, fill = Missing)) + geom_histogram(alpha = 0.5) + theme_bw()
 gridExtra::grid.arrange(p1,p2,ncol = 2)
 
 ```
@@ -70,12 +70,12 @@ corrplot::corrplot(cor(cordata),tl.cex = 0.8)
 What are the linear relationships with varying slopes - parallel lines?
 
 ```{r}
-ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Filter)) + geom_point()
-ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, fill = Filter, color = Filter)) + geom_histogram(alpha = 0.5) + facet_grid(Filter ~ .)
+ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Missing)) + geom_point()
+ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, fill = Missing, color = Missing)) + geom_histogram(alpha = 0.5) + facet_grid(Missing ~ .)
 
 MB <- MB %>% 
   dplyr::mutate(Pitch_H_Outlier = as.logical(ifelse(TEAM_PITCHING_H >= 1890, 1,0))) 
-MB_test <- MB %>% filter(Filter == F)
+MB_test <- MB %>% filter(Missing == F)
   ggplot(data = MB_test,mapping = aes(x = TEAM_PITCHING_H, color = Pitch_H_Outlier, fill = Pitch_H_Outlier)) + geom_histogram(alpha = 0.5) + theme_bw()
   
 ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
@@ -98,22 +98,29 @@ MB <- MB  %>%
     mutate(BatHR_Filter = as.logical(ifelse(TEAM_BATTING_HR <= 59, 1,0))) %>% 
     mutate(BatSO_Filter = as.logical(ifelse(TEAM_BATTING_SO <= 250, 1,0))) %>% 
     mutate(PitSO_Filter = as.logical(ifelse(TEAM_PITCHING_SO > 2000, 1, 0)))
+
+I1 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = BatHR_Filter, fill = BatHR_Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+I2 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_SO, color = BatSO_Filter, fill = BatSO_Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+gridExtra::grid.arrange(I1,I2,ncol = 2, nrow = 2)
+ #MB  %>%  dplyr::filter(Missing == T) %>% 
+#ggplot(mapping = aes(x = TEAM_PITCHING_SO, fill = PitSO_Filter, color = PitSO_Filter )) + geom_histogram(alpha = 0.5) + theme_bw()
 colnames(MB)[1] <- "INDEX"
 Pitch_H_outlierT <- MB$INDEX[MB$Pitch_H_Outlier]
 BatSO_Filter_T <- MB$INDEX[MB$BatSO_Filter]
 PitSOFilter_T <- MB$INDEX[MB$PitSO_Filter]
 
-MB <- MB %>% mutate (flag = as.logical(ifelse(INDEX %in% setdiff(setdiff(Pitch_H_outlierT,BatSO_Filter_T), PitSOFilter_T), 1,0)))
+MB <- MB %>% mutate (AltSlope = as.logical(ifelse(INDEX %in% setdiff(setdiff(Pitch_H_outlierT,BatSO_Filter_T), PitSOFilter_T), 1,0)))
 
 MB$HRSO_Filter <- as.logical(ifelse(rowSums(MB[,c('BatHR_Filter','BatSO_Filter')]) > 0 ,1, 0))
 
 
-ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = flag)) + geom_point() + theme_bw()
-ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw()
-ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw()
-
-
+I3 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
+I4 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = AltSlope )) + geom_point() + theme_bw()
+I5 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = AltSlope)) + geom_point() + theme_bw()
+I6 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw()
+I7 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw()
+I8 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color =  BatSO_Filter)) + geom_point() + theme_bw()
+gridExtra::grid.arrange(I3,I4,I5,I6,I7,I8, ncol = 2, nrow = 3)
 ```
 
 ```{r}
@@ -126,10 +133,10 @@ cordata <- cordata[reqrows,]
 cordata <- cordata %>% 
             dplyr::filter(BatSO_Filter == !T) %>% 
             dplyr::filter(PitSO_Filter == !T)
-ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = AltSlope)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
 ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
 ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = flag)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = AltSlope)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
 ```
 
 ## 3.0 Feature selections
@@ -141,86 +148,131 @@ What are the important features amongst complete cases?
 Would a simple model work?
 
 ```{r}
-colnames(cordata)
-simplemod <- lm(formula = TARGET_WINS ~ . , data = cordata[,c(1:9,16:17)])
-summary(simplemod)
-car::vif(simplemod)
-plot(simplemod)
+
+simple.Pred <- colnames(cordata)[c(1:9,15:17)]
+simple.Fit <- lm(formula = TARGET_WINS ~ . , data = cordata[,simple.Pred])
+summary(simple.Fit)
+car::vif(simple.Fit)
+plot(simple.Fit)
+plot(simple.Fit,which = 4)
+length(simple.Pred)
+
+
+simple.rev.Pred <- simple.Pred[which(simple.Pred %in% c("TEAM_BASERUN_CS","Pitch_H_Outlier")) * -1]
+simple.rev.Fit <- lm(formula = TARGET_WINS ~ . , data = cordata[,simple.rev.Pred])
+summary(simple.rev.Fit)
+car::vif(simple.rev.Fit)
+plot(simple.rev.Fit)
+plot(simple.rev.Fit,which = 4)
+
+
+```
+### 3.1 Automated Variable selection
+
+```{r}
+Simple.step.Fit <- MASS::stepAIC(simple.rev.Fit, scope = list(lower = ~1, upper = formula(simple.rev.Fit)),direction = "both",trace = F)
+summary(Simple.step.Fit)
+plot(Simple.step.Fit)
 ```
 
 
-### 3.1 PCA
+### 3.2 PCA
 
 ```{r}
 
-x <- model.matrix(TARGET_WINS ~., data = cordata)[,-1]
-colnames(x)[15:19] <- c("Pitch_H_Outlier","Bat_HR_Filter","BatSO_Filter", "PitSO_Filter","flag")
-pca <- princomp(x[,-17:-18],cor = T)
+# cleanup data for PCA
+
+nearzeros <- caret::nearZeroVar(cordata,saveMetrics = T)
+zerovars <- rownames(nearzeros)[nearzeros$zeroVar]
+pcavars <- colnames(cordata)[c(1,which(colnames(cordata) %in% zerovars))*-1]
+pcadata <- cordata[,pcavars]
+
+pca <- princomp(pcadata,cor = T)
+
 summary(pca)
+# x <- model.matrix(TARGET_WINS ~., data = cordata)[,-1]
+# colnames(x)[15:19] <- c("Pitch_H_Outlier","Bat_HR_Filter","BatSO_Filter", "PitSO_Filter","flag")
+# pca <- princomp(x[,-17:-18],cor = T)
+# summary(pca)
 cumvariance <- cumsum(pca$sdev^2) / sum(pca$sdev^2)
 plot(cumvariance, xlab = "Component Number", ylab = "Cumulative Variance", type = "l")
 points(cumvariance)
 
 pca.scores <- pca$scores[,1:6]
 #df <- data.frame(pca.scores,MB[reqrows,colnames(MB)[c(2,24)]])
-df <- data.frame(pca.scores,MB[reqrows,2],x[,15:19])
-df <- df %>% dplyr::mutate(cluster = as.factor(Pitch_H_Outlier + Bat_HR_Filter/10))
-colnames(df)[7] <- c("TARGET_WINS")
-ggplot(data = df, mapping = aes(x = Comp.1, y = Comp.2, color = cluster )) + geom_point() + theme_bw()
-ggplot(data = df, mapping = aes(x = Comp.1, y = Comp.2, color = flag)) + geom_point() + theme_bw()
+dfclust <- data.frame(pca.scores,cordata[,c('Pitch_H_Outlier','BatHR_Filter','AltSlope', 'TARGET_WINS')])
+dfclust <- dfclust %>% dplyr::mutate(cluster = as.factor(Pitch_H_Outlier + BatHR_Filter/10))
+#colnames(df)[7] <- c("TARGET_WINS")
+clust1 <- ggplot(data = dfclust, mapping = aes(x = Comp.1, y = Comp.2, color = cluster )) + geom_point() + theme_bw()
+clust2 <- ggplot(data = dfclust, mapping = aes(x = Comp.1, y = Comp.2, color = AltSlope)) + geom_point() + theme_bw()
+library("RColorBrewer")
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+sc <- scale_colour_gradientn(colours = myPalette(100))
+clust3 <- ggplot(data = dfclust, mapping = aes(x = Comp.1, y = Comp.2, color = TARGET_WINS)) + geom_point() + theme_bw() + scale_colour_gradient2() + sc
+gridExtra::grid.arrange(clust1,clust2,clust3, ncol=2)
+
 library(MASS)
-lower.lm <- lm(data = df[,-13], formula = TARGET_WINS ~ 1)
-upper.lm <- lm(data = df[,-13], formula = TARGET_WINS ~ .)
-step.lm <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "both", trace = F)
-summary(step.lm)
-anova(step.lm)
-plot(step.lm)
-car::vif(step.lm)
+lower.lm <- lm(data = dfclust[,c(1:6,10)], formula = TARGET_WINS ~ 1)
+upper.lm <- lm(data = dfclust[,c(1:6,10)], formula = TARGET_WINS ~ .)
+pca.step.Fit <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "both", trace = F)
+summary(pca.step.Fit)
+anova(pca.step.Fit)
+plot(pca.step.Fit)
 
-forward.lm <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "forward", trace = F)
-summary(forward.lm)
-plot(forward.lm)
 
-backward.lm <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "backward", trace = F)
-summary(backward.lm)
-plot(backward.lm)
+pca.forward.Fit <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "forward", trace = F)
+summary(pca.forward.Fit)
+
+plot(pca.forward.Fit)
+
+pca.backward.Fit<- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "backward", trace = F)
+summary(pca.backward.Fit)
+plot(pca.backward.Fit)
 ```
 
 ### 3.2 Lasso
 
 ```{r}
 library(glmnet)
+x <- model.matrix(TARGET_WINS ~., data = cordata)[,-1]
+colnames(x) <- gsub(pattern = "TRUE", "", colnames(x))
+y <- cordata$TARGET_WINS
 grid = 10^seq(10,-2,length = 100)
-lasso.out <- cv.glmnet(x,df$TARGET_WINS,alpha = 1)
+lasso.out <- cv.glmnet(x,y,alpha = 1)
 plot(lasso.out)
-lasso.mod <- glmnet(x,df$TARGET_WINS,alpha = 1, lambda = lasso.out$lambda.min)
+lasso.Fit <- glmnet(x,df$TARGET_WINS,alpha = 1, lambda = lasso.out$lambda.min)
+#summary(lasso.Fit)
+Candidate_Lasso <- names(coef(lasso.mod)[order(abs(round(coef(lasso.Fit),3)),decreasing = T),])[2:10]
+Coeff.Lasso <- coef(lasso.mod)[order(abs(round(coef(lasso.Fit),3)),decreasing = T)][2:10]
+Candidate_Lasso <- gsub(pattern = "TRUE",replacement = "",x = Candidate_Lasso)
+lasso.formula <- paste("TARGET_WINS ~ ",paste(Candidate_Lasso, collapse = " + "))
 
-xl <- model.matrix(TARGET_WINS ~., data = MB2)[,-1]
-colnames(xl) <- gsub("TRUE", "",colnames(xl))
-colnames(MB2) <- gsub("TRUE", "",colnames(MB2))
-reqcols_l <- intersect(colnames(x), colnames(xl))
-xl2 <- xl[,reqcols_l]
-lasso.pred <- predict(lasso.mod,s = lasso.out$lambda.min,newx = as.matrix(MB2[,reqcols_l]))
-MB2$pred <- as.numeric(lasso.pred)
+ImpPredictors.Lasso <- data.frame(Predictors = Candidate_Lasso,Importance = abs(Coeff.Lasso))
 
- MB2 %>% 
-   mutate(resid = TARGET_WINS - pred) %>% 
-   ggplot(mapping = aes(x = TARGET_WINS, y = resid, color = Pitch_H_Outlier)) + geom_point() + geom_smooth(method = "lm") + theme_bw()
- 
- MB2 %>% 
-   dplyr::filter(Pitch_H_Outlier == F) %>% 
-  mutate(resid = TARGET_WINS - pred) %>% 
-  ggplot(mapping = aes(x = TARGET_WINS, y = resid, color = Pitch_H_Outlier)) + geom_point() + geom_smooth(method = "lm") + theme_bw()
+library(forcats)
+ggplot(data = ImpPredictors.Lasso,mapping = aes(y = Importance, x = fct_reorder(Predictors,Importance))) + geom_col(color = 'red', fill = 'red') + coord_flip() + theme_bw() + xlab("Predictors")
+# Proper naming of variables
+
 
 # R Squared
-lasso.mod$dev.ratio
+lasso.Fit$dev.ratio
 
-Candidate_Lasso <- names(coef(lasso.mod)[order(abs(round(coef(lasso.mod),3)),decreasing = T),])[2:10]
-formula <- paste("TARGET_WINS ~ ",paste(Candidate_Lasso, collapse = " + "))
+lasso.pred <- predict(lasso.Fit,s = lasso.out$lambda.min,newx =x)
+lasso.resid <- y - as.numeric(lasso.pred)
+plot(y = lasso.resid, x = lasso.pred)
+qqnorm(lasso.resid)
+qqline(lasso.resid)
 
-lasso.selection.lm <- stepAIC(lm(TARGET_WINS ~ 1, data = cordata), scope = list(lower = ~1, upper = formula), direction = "both", trace = F) 
-summary(lasso.selection.lm)
-car::vif(lasso.selection.lm)
+# Using Variable into OLS regression
+Lasso.OLS.Fit <- lm(data = cordata[,c('TARGET_WINS',Candidate_Lasso)], formula = TARGET_WINS ~ .)
+summary(Lasso.OLS.Fit)
+
+Lasso.Step.Fit <- stepAIC(Lasso.OLS.Fit, scope = list(lower = ~1, upper = formula(Lasso.OLS.Fit)),direction = 'both')
+summary(Lasso.Step.Fit)
+plot(Lasso.Step.Fit)
+par(mfrow = c(1,2))
+plot(y = lasso.resid, x = lasso.pred,ylim = c(-40,40))
+plot(Lasso.Step.Fit$fitted.values, Lasso.Step.Fit$residuals,ylim = c(-40,40),xlim = c(45,110),xlab = "Fitted.OLS", ylab = "residuals")
 
 
 # cordata$Pitch_H_Outlier <- as.numeric(cordata$Pitch_H_Outlier)
@@ -233,28 +285,32 @@ car::vif(lasso.selection.lm)
 How to add indicator variables to the model?
 
 ```{r}
-plsdf <- data.frame(x[,-16:-18], cordata$TARGET_WINS)
-plsdf <- plsdf %>% dplyr::filter(Pitch_H_Outlier == F)
-colnames(plsdf)[16] <- "TARGET_WINS"
-outliers <- plsdf[,15]
-plsdf <- plsdf[,-15]
-pls.lm <- pls::plsr(TARGET_WINS ~ ., data  = plsdf, scale = T, validation = "CV")
+plsdf <- data.frame(x,y)
+# plsdf <- plsdf %>% dplyr::filter(Pitch_H_Outlier == F)
+colnames(plsdf)[20] <- "TARGET_WINS"
+
+pls.Fit <- pls::plsr(TARGET_WINS ~ ., data  = plsdf[,which(colnames(plsdf) %in% c("BatSO_Filter","PitSO_Filter"))*-1], scale = T, validation = "CV")
 
 library(pls)
-validationplot(pls.lm)
-summary(pls.lm)
+validationplot(pls.Fit)
+summary(pls.Fit)
 library(caret)
-plot(varImp(pls.lm),top = 10)
-plot(pls::R2(pls.lm))
+plot(varImp(pls.Fit),top = 10)
+plot(pls::R2(pls.Fit))
 
-pls.df <- data.frame(pls.lm$scores[,1:4],plsdf$TARGET_WINS)
+pls.df <- data.frame(pls.Fit$scores[,1:4],plsdf$TARGET_WINS)
 colnames(pls.df)[5] <- "TARGET_WINS"
 
-pls.lm.2 <- lm(data = pls.df,formula = TARGET_WINS ~ . )
+pls.lm.Fit <- lm(data = pls.df,formula = TARGET_WINS ~ ., )
 
-plot(pls.lm.2)
-summary(pls.lm.2)
-anova(pls.lm.2)
+plot(pls.lm.Fit)
+summary(pls.lm.Fit)
+anova(pls.lm.Fit)
+
+ImpVars <- function(loadingsmatrix,k) {
+  purrr::map(.x = 1:k,.f = function(x) {names(loadingsmatrix[order(abs(loadingsmatrix[,x]),decreasing = T),x])})
+}
+
 ```
 
 
