@@ -155,7 +155,13 @@ summary(simple.Fit)
 car::vif(simple.Fit)
 plot(simple.Fit)
 plot(simple.Fit,which = 4)
-length(simple.Pred)
+# length(simple.Pred)
+
+## Generating equation
+coef.simple <- round(coefficients(simple.Fit),2)
+signs.simple <- ifelse(sign(coef.simple)==1,"+", "-")
+Betas.simple <- paste(abs(coef.simple[2:length(coef.simple)]),"*",simple.Pred)
+eqn.simple <- paste("TARGET_WINS =", paste(coef.simple[1],paste(paste(signs.simple[2:length(signs.simple)],Betas.simple),collapse = " ")))
 
 
 simple.rev.Pred <- simple.Pred[which(simple.Pred %in% c("TEAM_BASERUN_CS","Pitch_H_Outlier")) * -1]
@@ -165,6 +171,11 @@ car::vif(simple.rev.Fit)
 plot(simple.rev.Fit)
 plot(simple.rev.Fit,which = 4)
 
+## Generating equation
+coef.simple.rev <- round(coefficients(simple.rev.Fit),2)
+signs.simple.rev <- ifelse(sign(coef.simple.rev)==1,"+", "-")
+Betas.simple.rev <- paste(abs(coef.simple.rev[2:length(coef.simple.rev)]),"*",simple.rev.Pred[-1])
+eqn.simple.rev <- paste("TARGET_WINS =", paste(coef.simple.rev[1],paste(paste(signs.simple.rev[2:length(signs.simple.rev)],Betas.simple.rev),collapse = " ")))
 
 ```
 ### 3.1 Automated Variable selection
@@ -173,6 +184,13 @@ plot(simple.rev.Fit,which = 4)
 Simple.step.Fit <- MASS::stepAIC(simple.rev.Fit, scope = list(lower = ~1, upper = formula(simple.rev.Fit)),direction = "both",trace = F)
 summary(Simple.step.Fit)
 plot(Simple.step.Fit)
+
+formula_simple.step <- as.character(formula(Simple.step.Fit)) [3]
+Simple.step.pred <- unlist(strsplit(formula_simple.step, split = "+",fixed = T))
+coef.simple.step <- round(coefficients(Simple.step.Fit),2)
+signs.simple.step <- ifelse(sign(coef.simple.step)==1,"+", "-")
+Betas.simple.step <- paste(abs(coef.simple.step[2:length(coef.simple.step)]),"*",Simple.step.pred)
+eqn.simple.step <- paste("TARGET_WINS =", paste(coef.simple.step[1],paste(paste(signs.simple.step[2:length(signs.simple.step)],Betas.simple.step),collapse = " ")))
 ```
 
 
@@ -228,6 +246,19 @@ plot(pca.forward.Fit)
 pca.backward.Fit<- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "backward", trace = F)
 summary(pca.backward.Fit)
 plot(pca.backward.Fit)
+
+# The below code just replicates the pca.step.Fit for easy prediction for testing. Its a change in class object.
+
+pcadatarev <- data.frame(TARGET_WINS = cordata[,1],pcadata)
+pca.Fit <- pls::pcr(data = pcadatarev, formula = TARGET_WINS ~ .,scale = T,ncomp = 6)
+
+formula_pca <- as.character(formula(pca.step.Fit))[3]
+predictors_pca <- unlist(strsplit(formula_pca, split = "+",fixed = T))
+coef.pca.step <- round(coefficients(pca.step.Fit),2)
+signs.pca.step <- ifelse(sign(coef.pca.step)==1,"+", "-")
+Betas.pca.step <- paste(abs(coef.pca.step[2:length(coef.pca.step)]),"*",predictors_pca)
+eqn.pca.step <- paste("TARGET_WINS =", paste(coef.pca.step[1],paste(paste(signs.pca.step[2:length(signs.pca.step)],Betas.pca.step),collapse = " ")))
+
 ```
 
 ### 3.2 Lasso
@@ -240,10 +271,10 @@ y <- cordata$TARGET_WINS
 grid = 10^seq(10,-2,length = 100)
 lasso.out <- cv.glmnet(x,y,alpha = 1)
 plot(lasso.out)
-lasso.Fit <- glmnet(x,df$TARGET_WINS,alpha = 1, lambda = lasso.out$lambda.min)
+lasso.Fit <- glmnet(x,y,alpha = 1, lambda = lasso.out$lambda.min)
 #summary(lasso.Fit)
-Candidate_Lasso <- names(coef(lasso.mod)[order(abs(round(coef(lasso.Fit),3)),decreasing = T),])[2:10]
-Coeff.Lasso <- coef(lasso.mod)[order(abs(round(coef(lasso.Fit),3)),decreasing = T)][2:10]
+Candidate_Lasso <- names(coef(lasso.Fit)[order(abs(round(coef(lasso.Fit),3)),decreasing = T),])[2:10]
+Coeff.Lasso <- coef(lasso.Fit)[order(abs(round(coef(lasso.Fit),3)),decreasing = T)][2:10]
 Candidate_Lasso <- gsub(pattern = "TRUE",replacement = "",x = Candidate_Lasso)
 lasso.formula <- paste("TARGET_WINS ~ ",paste(Candidate_Lasso, collapse = " + "))
 
@@ -274,6 +305,13 @@ par(mfrow = c(1,2))
 plot(y = lasso.resid, x = lasso.pred,ylim = c(-40,40))
 plot(Lasso.Step.Fit$fitted.values, Lasso.Step.Fit$residuals,ylim = c(-40,40),xlim = c(45,110),xlab = "Fitted.OLS", ylab = "residuals")
 
+formula_Lasso.OLS <- as.character(formula(Lasso.OLS.Fit))[3]
+predictors_Lasso.OLS <- unlist(strsplit(formula_Lasso.OLS, split = "+",fixed = T))
+coef.Lasso.OLS <- round(coefficients(Lasso.OLS.Fit),2)
+signs.Lasso.OLS <- ifelse(sign(coef.Lasso.OLS)==1,"+", "-")
+Betas.Lasso.OLS <- paste(abs(coef.Lasso.OLS[2:length(coef.Lasso.OLS)]),"*",predictors_Lasso.OLS)
+eqn.Lasso.OLS <- paste("TARGET_WINS =", paste(coef.Lasso.OLS[1],paste(paste(signs.Lasso.OLS[2:length(signs.pca.step)],Betas.Lasso.OLS),collapse = " ")))
+
 
 # cordata$Pitch_H_Outlier <- as.numeric(cordata$Pitch_H_Outlier)
 # summary(lm(data = cordata ,  TARGET_WINS ~ flag + TEAM_FIELDING_E + TEAM_FIELDING_DP + TEAM_BATTING_H  + TEAM_BASERUN_CS ))
@@ -301,6 +339,8 @@ plot(pls::R2(pls.Fit))
 pls.df <- data.frame(pls.Fit$scores[,1:4],plsdf$TARGET_WINS)
 colnames(pls.df)[5] <- "TARGET_WINS"
 
+# test to make sure if the PLS does the OLS on the component scores 
+
 pls.lm.Fit <- lm(data = pls.df,formula = TARGET_WINS ~ ., )
 
 plot(pls.lm.Fit)
@@ -311,44 +351,152 @@ ImpVars <- function(loadingsmatrix,k) {
   purrr::map(.x = 1:k,.f = function(x) {names(loadingsmatrix[order(abs(loadingsmatrix[,x]),decreasing = T),x])})
 }
 
+formula_pls <- as.character(formula(pls.lm.Fit))[3]
+predictors_pls <- unlist(strsplit(formula_pls, split = "+",fixed = T))
+coef.pls <- round(coefficients(pls.lm.Fit),2)
+signs.pls <- ifelse(sign(coef.pls)==1,"+", "-")
+Betas.pls <- paste(abs(coef.pls[2:length(coef.pls)]),"*",predictors_pls)
+eqn.pls <- paste("TARGET_WINS =", paste(coef.pls[1],paste(paste(signs.pls[2:length(signs.pls)],Betas.pls),collapse = " ")))
+
+
 ```
 
 
 ### 3.4 Random forest
 
 ```{r}
-# Split data into training and testing
-cordata <- cordata %>% mutate(ID = 1:nrow(cordata))
-train <- dplyr::sample_frac(cordata,0.7)
-test <- dplyr::anti_join(cordata, train)
+set.seed(7)
+# load the library
+library(mlbench)
+library(caret)
+control <- rfeControl(functions = rfFuncs, method = "cv",number = 10)
 
+results <- rfe(cordata[,2:20],cordata[,1],sizes = c(1:19),rfeControl = control)
+# summarize the results
+print(results)
+# list the chosen features
+predictors(results)
+# plot the results
+plot(results, type=c("g", "o"))
+
+
+form <- paste("TARGET_WINS ~",paste(c( "TEAM_FIELDING_E", "TEAM_BATTING_H", "TEAM_BATTING_BB", "TEAM_PITCHING_SO"),collapse = "+"))
+
+rf.Fit <- lm(data =cordata,formul = form)
+summary(rf.Fit)
 
 ```
 
 
-### Impute data
+### 4. Imputing and Data Prep for testing
 
 ```{r}
-library(VIM)
-MB2 <- kNN(data = MB,variable = colnames(MB)[c(-1,-11,-18:-27)], k = 5 )
-sanitycheck2 <- do.call(rbind,dfapply(MB2,favstats, select = is.numeric))
-MB2 <- MB2 %>% subset(select = rownames(sanitycheck2))
-MB2 <- MB2[,c(-1,-11)]
-x1 <- model.matrix(TARGET_WINS ~ ., data = MB2)
-pca2 <- princomp(x1,cor = T)
-cumvariance2 <- cumsum(pca2$sdev^2) / sum(pca2$sdev^2)
-plot(cumvariance2, xlab = "Component Number", ylab = "Cumulative Variance", type = "l")
-points(cumvariance2)
-pca2.scores <- pca2$scores[,1:6]
-df2 <- data.frame(pca2.scores,MB2$TARGET_WINS)
-colnames(df2)[7] <- 'TARGET_WINS'
-lower2.lm <- lm(data = df2, formula = TARGET_WINS ~ 1)
-upper2.lm <- lm(data = df2, formula = TARGET_WINS ~ .)
-step2.lm <- stepAIC(lower2.lm, scope = list(upper = formula(upper2.lm), lower = ~1), direction = "both", trace = F)
-summary(step2.lm)
-anova(step2.lm)
-plot(step2.lm)
+MoneyBallDataPrep <- function(Path) {
+  # Library calls
+  library(dplyr)
+  library(magrittr)
+  library(VIM)
+  
+  # read data in
+  MB2 <- read.csv(file = Path , header = T)
+  
+  # Identity columns positions of those that are not required.
+  NotRequired <- c("INDEX", "TEAM_BATTING_HBP")
+  NotRequiredPos <- which(colnames(MB2) %in% NotRequired)
+  
+  # Impute Data
+
+  MB2 <- kNN(data = MB2,variable = colnames(MB2)[NotRequiredPos*-1], k = 5)
+  
+  # Attrubute and indicator variables
+  
+  MB2 <- MB2  %>% 
+    mutate(BatHR_Filter = as.logical(ifelse(TEAM_BATTING_HR <= 59, 1,0))) %>% 
+    mutate(BatSO_Filter = as.logical(ifelse(TEAM_BATTING_SO <= 250, 1,0))) %>% 
+    mutate(PitSO_Filter = as.logical(ifelse(TEAM_PITCHING_SO > 2000, 1, 0))) %>% 
+    mutate(Pitch_H_Outlier = as.logical(ifelse(TEAM_PITCHING_H >= 1890, 1,0)))
+  
+  Pitch_H_outlierT <- MB2$INDEX[MB2$Pitch_H_Outlier]
+  BatSO_Filter_T <- MB2$INDEX[MB2$BatSO_Filter]
+  PitSOFilter_T <- MB2$INDEX[MB2$PitSO_Filter]
+  
+  MB2 <- MB2 %>% 
+    mutate (AltSlope = as.logical(ifelse(INDEX %in% setdiff(setdiff(Pitch_H_outlierT,BatSO_Filter_T), PitSOFilter_T), 1,0)))
+  
+ # Get required columns
+  reqcols <- colnames(MB2)[c(grep("_imp",colnames(MB2))*-1,NotRequiredPos*-1)]
+  
+ MB2 %>% dplyr::select(reqcols)
+}
+
 ```
 
+
+```{r}
+TestData <- MoneyBallDataPrep(Path = 'MoneyBall.csv')
+# Test of Simple.rev.Fit
+simple.rev.fitted <- predict(simple.rev.Fit,newdata = TestData)
+#plot(TestData$TARGET_WINS , simple.rev.fitted)
+MAE_Simple.rev.Fit <- mean(abs(TestData$TARGET_WINS - simple.rev.fitted))
+MSE_Simple.rev.Fit <- mean((TestData$TARGET_WINS - simple.rev.fitted)^2)
+AIC_Simple.rev.Fit <- AIC(simple.rev.Fit)
+AdjRSquared_Simple.rev.Fit <- summary(simple.rev.Fit)$adj.r.squared
+
+# Test of Simple Stepwise fit
+
+simple.step.fitted <- predict(object = Simple.step.Fit,newdata = TestData)
+MAE_simple.step.Fit <- mean(abs(TestData$TARGET_WINS - simple.step.fitted))
+MSE_simple.step.Fit <- mean((TestData$TARGET_WINS - simple.step.fitted)^2)
+AIC_simple.step.Fit <- AIC(Simple.step.Fit)
+AdjRSquared_Simple.Step <- summary(Simple.step.Fit)$adj.r.squared
+
+# Test of PCR 
+xtest <- TestData[,pcavars]
+pca.fitted <- predict(pca.Fit,newdata = xtest,ncomp = 6)
+MAE_pca.Fit <- mean(abs(TestData$TARGET_WINS - pca.fitted))
+MSE_pca.Fit <- mean((TestData$TARGET_WINS - pca.fitted)^2)
+AIC_pca.Fit <- AIC(pca.step.Fit) # using a non mvr class for AIC calculation 
+AdjRSquared_pca.Fit <- summary(pca.step.Fit)$adj.r.squared
+
+# Test of predictors from Lasso fit.
+
+lasso.OLS.Fitted <- predict(Lasso.OLS.Fit,newdata = TestData)
+MAE_lasso.OLS.Fit <- mean(abs(TestData$TARGET_WINS - lasso.OLS.Fitted))
+MSE_lasso.OLS.Fit <- mean((TestData$TARGET_WINS - lasso.OLS.Fitted)^2)
+AIC_Lasso.OLS.Fit <- AIC(Lasso.OLS.Fit)
+AdjRSquared_Lasso.OLS.Fit <- summary(Lasso.OLS.Fit)$adj.r.squared
+
+# Test of PLS model
+TestData.rev <- TestData %>% 
+  mutate(Pitch_H_Outlier = as.numeric(Pitch_H_Outlier)) %>% 
+  mutate(BatHR_Filter = as.numeric(BatHR_Filter)) %>% 
+  mutate(AltSlope = as.numeric(AltSlope)) 
+pls.Fitted <- predict(pls.Fit, newdata = TestData.rev, ncomp = 4)
+MAE_pls.Fit <- mean(abs(TestData.rev$TARGET_WINS - pls.Fitted))
+MSE_pls.Fit <- mean((TestData.rev$TARGET_WINS - pls.Fitted)^2)
+AIC_pls.Fit <- AIC(pls.lm.Fit)
+AdjRSquared_pls.Fit <- summary(pls.lm.Fit)$adj.r.squared
+
+# random forest predictors
+
+rf.Fitted <- predict(rf.Fit, newdata = TestData)
+MAE_rf.Fit <- mean(abs(TestData.rev$TARGET_WINS - rf.Fitted))
+MSE_rf.Fit <- mean((TestData.rev$TARGET_WINS - rf.Fitted)^2)
+AIC_rf.Fit <- AIC(rf.Fit)
+AdjRSquared_AIC_rf.Fit <- summary(rf.Fit)$adj.r.squared
+
+ModelComparison <- data.frame(Type = c("Simple", "Stepwise", "Prin.Comp.Regression","Lasso Predictors", "Partial Least Squares", "Random forest predictors" ),
+                              Formula = c(as.character(formula(simple.rev.Fit)),as.character(formula(Simple.step.Fit)),as.character(formula(pca.step.Fit)),as.character(formula(Lasso.OLS.Fit)),as.character(formula(pls.lm.Fit)), as.character(formula(rf.Fit))),
+                              Adj.R.Squared = c(AdjRSquared_Simple.rev.Fit,AdjRSquared_Simple.Step,AdjRSquared_pca.Fit,AdjRSquared_Lasso.OLS.Fit,AdjRSquared_pls.Fit,AdjRSquared_AIC_rf.Fit),
+                              AIC = c(AIC_Simple.rev.Fit,AIC_simple.step.Fit,AdjRSquared_pca.Fit,AdjRSquared_Lasso.OLS.Fit,AdjRSquared_pls.Fit,AdjRSquared_AIC_rf.Fit),
+                              MAE = c(MAE_Simple.rev.Fit,MAE_simple.step.Fit,MAE_pca.Fit,MAE_lasso.OLS.Fit,MAE_pls.Fit,MAE_rf.Fit))
+```
+
+
+### 5. Testing models
+
+```{r}
+pander::pandoc.table(ModelComparison)
+```
 
 
