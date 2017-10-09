@@ -10,7 +10,7 @@ output:
 \pagebreak 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 library(magrittr)
 ```
 
@@ -362,6 +362,10 @@ p = 0.3 is the most likely value of p
 
 ## Chapter 2 Question 6
 
+Though I understand the theory, the R part of the computation still confuses me. I am not fully confident about my answer to this question. Tammy had answered this question... I am yet to internalize it...
+
+Still confused about the deviance and AI
+
 ```{r}
 usdata <- read.csv('usdata.csv')
 null.lm <- glm(formula = VIOLRATE ~ 1, data = usdata)
@@ -376,6 +380,13 @@ summary(model2.6.lm)
 DevianceMu <- deviance(model2.6.lm)
 ln_LMu <- DevianceMu/-2
 Rsq_McF <-  1 - (ln_LMu - 4)/ln_LMc
+
+Pseudo_R_Squared <- (DevianceMc - DevianceMu)/DevianceMc
+
+AIC = DevianceMu + 8 # Not matching 
+
+BIC = DevianceMu - (nrow(usdata) - 4) * log(nrow(usdata))
+
 
 ```
 

@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F,tidy.opts=list(width.cutoff=70),tidy=TRUE)
 library(magrittr)
 library(dplyr)
 ```
@@ -265,7 +265,7 @@ The following model was fit with manual choice of variables by refering the corr
 
 **`r eqn.simple`**
 
-It is found that "BASERUN_CS" and "PITCH_H_Outlier" variables were statistically not significant from zero. Also the model meshes with theoretical effect for most part except that the coefficent for FIELDING_DP is negative, counter to expectation. The adjusted R-squared of 35% leaves room for improvement.
+It is found that "BASERUN_CS" and "PITCH_H_Outlier" variables were statistically not significant from zero. Also the model meshes with theoretical effect for most part except that the coefficent for FIELDING_DP is negative, counter to expectation. The adjusted R-squared of 35% leaves room for improvement. The assumption of OLS regression have been satisfied.
 
 ```{r, fig.cap="Simple model results"}
 # Simple model
@@ -281,23 +281,25 @@ plot(simple.Fit,which = 4)
 
 ## 4.2 Revisied simple multiple linear regression model
 
-From the above model, the variables "BASERUN_CS" and "PITCH_H_Outlier" are removed and a revised model is fit. This model is interpretable and is in line with theoretical expectations. The indicator variable correctly identifies the effect of low values of home runs leading up to fewer predicted wins.  However adjusted R-Squared value of 32% leaves room for improvement.
+From the above model, the variables "BASERUN_CS" and "PITCH_H_Outlier" are removed and a revised model is fit as below:
+
+**`r eqn.simple.rev `**
+
+This model is interpretable and is in line with theoretical expectations. The indicator variable correctly identifies the effect of low values of home runs leading up to fewer predicted wins.  However adjusted R-Squared value of 32% leaves room for improvement. The assumptions of OLS regression is satisfied and multicollinearity is satisfactory.
 
 ```{r,fig.cap="Revised Simple model results"}
 summary(simple.rev.Fit)
-car::vif(simple.rev.Fit)
+#car::vif(simple.rev.Fit)
+par(mfrow = c(2,2))
 plot(simple.rev.Fit, which = 1:3)
 plot(simple.rev.Fit,which = 4)
 
 ```
 
-### 3.1 Automated Variable selection
+## 4.3 Automated Variable selection
 
 ```{r}
 Simple.step.Fit <- MASS::stepAIC(simple.rev.Fit, scope = list(lower = ~1, upper = formula(simple.rev.Fit)),direction = "both",trace = F)
-summary(Simple.step.Fit)
-plot(Simple.step.Fit)
-
 formula_simple.step <- as.character(formula(Simple.step.Fit)) [3]
 Simple.step.pred <- unlist(strsplit(formula_simple.step, split = "+",fixed = T))
 coef.simple.step <- round(coefficients(Simple.step.Fit),2)
@@ -306,10 +308,26 @@ Betas.simple.step <- paste(abs(coef.simple.step[2:length(coef.simple.step)]),"*"
 eqn.simple.step <- paste("TARGET_WINS =", paste(coef.simple.step[1],paste(paste(signs.simple.step[2:length(signs.simple.step)],Betas.simple.step),collapse = " ")))
 ```
 
+Automated stepwise variable selection method was employed with a search range between full model (all variables) and intercept only variables. The resulting model had high multicollinearity and the model is not shown in this report. However, automated variable selection was used to search within the manually chosen variables used in the above two models. The following model was fit as a result:
 
-### 3.2 PCA
+**`r eqn.simple.step`**
 
-```{r}
+The resulting model was identical to the revised simple model.
+
+```{r, fig.cap= "Stepwise automated variable selection"}
+summary(Simple.step.Fit)
+par(mfrow = c(2,2))
+plot(Simple.step.Fit,which = 1:4)
+
+
+```
+
+
+### 4.4 Principle Component Regression (PCA)
+
+Given that the predictors are correlated and full models having the problem of multicollinearity, Principle Component Analysis (PCA) was employed for overcoming the problem of multicollinearity in search of a predictive model by giving up interpretability. It is seen that the first 6 principle components explain over 85 % of the variation in the data. Figure 12 shows the clusters in the data, that's explained by the indicator variables. It is seen that there are 3 clsuters. Cluster 1 indicating Pitch_H_outlier being true; Cluster 1.1 indicating both Pitch_H_outlier and BatHR_Filter (low home runs) being true; Clsuter 2 indicating alternate slope. Refer section 3.3.1 for indicator variable definitions.
+
+```{r,fig.cap= "Proportion of variance explained by the pricinple components"}
 
 # cleanup data for PCA
 
@@ -320,7 +338,7 @@ pcadata <- cordata[,pcavars]
 
 pca <- princomp(pcadata,cor = T)
 
-summary(pca)
+#summary(pca)
 # x <- model.matrix(TARGET_WINS ~., data = cordata)[,-1]
 # colnames(x)[15:19] <- c("Pitch_H_Outlier","Bat_HR_Filter","BatSO_Filter", "PitSO_Filter","flag")
 # pca <- princomp(x[,-17:-18],cor = T)
@@ -328,7 +346,9 @@ summary(pca)
 cumvariance <- cumsum(pca$sdev^2) / sum(pca$sdev^2)
 plot(cumvariance, xlab = "Component Number", ylab = "Cumulative Variance", type = "l")
 points(cumvariance)
+```
 
+```{r, fig.cap = "clusters"}
 pca.scores <- pca$scores[,1:6]
 #df <- data.frame(pca.scores,MB[reqrows,colnames(MB)[c(2,24)]])
 dfclust <- data.frame(pca.scores,cordata[,c('Pitch_H_Outlier','BatHR_Filter','AltSlope', 'TARGET_WINS')])
@@ -341,29 +361,15 @@ myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 sc <- scale_colour_gradientn(colours = myPalette(100))
 clust3 <- ggplot(data = dfclust, mapping = aes(x = Comp.1, y = Comp.2, color = TARGET_WINS)) + geom_point() + theme_bw() + scale_colour_gradient2() + sc
 gridExtra::grid.arrange(clust1,clust2,clust3, ncol=2)
+```
 
+
+
+```{r}
 library(MASS)
 lower.lm <- lm(data = dfclust[,c(1:6,10)], formula = TARGET_WINS ~ 1)
 upper.lm <- lm(data = dfclust[,c(1:6,10)], formula = TARGET_WINS ~ .)
 pca.step.Fit <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "both", trace = F)
-summary(pca.step.Fit)
-anova(pca.step.Fit)
-plot(pca.step.Fit)
-
-
-pca.forward.Fit <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "forward", trace = F)
-summary(pca.forward.Fit)
-
-plot(pca.forward.Fit)
-
-pca.backward.Fit<- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "backward", trace = F)
-summary(pca.backward.Fit)
-plot(pca.backward.Fit)
-
-# The below code just replicates the pca.step.Fit for easy prediction for testing. Its a change in class object.
-
-pcadatarev <- data.frame(TARGET_WINS = cordata[,1],pcadata)
-pca.Fit <- pls::pcr(data = pcadatarev, formula = TARGET_WINS ~ .,scale = T,ncomp = 6)
 
 formula_pca <- as.character(formula(pca.step.Fit))[3]
 predictors_pca <- unlist(strsplit(formula_pca, split = "+",fixed = T))
@@ -371,10 +377,42 @@ coef.pca.step <- round(coefficients(pca.step.Fit),2)
 signs.pca.step <- ifelse(sign(coef.pca.step)==1,"+", "-")
 Betas.pca.step <- paste(abs(coef.pca.step[2:length(coef.pca.step)]),"*",predictors_pca)
 eqn.pca.step <- paste("TARGET_WINS =", paste(coef.pca.step[1],paste(paste(signs.pca.step[2:length(signs.pca.step)],Betas.pca.step),collapse = " ")))
+```
+
+The following PC model was fit :
+
+**`r eqn.pca.step`**
+
+The PCA regression did not yield an interpretable model and also the model's R-Squared value of 235 was less than ideal.
+
+```{r, fig.cap = "PCA Regression"}
+summary(pca.step.Fit)
+anova(pca.step.Fit)
+par(mfrow=c(2,2))
+plot(pca.step.Fit, which = 1:4)
+
+
+pca.forward.Fit <- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "forward", trace = F)
+#summary(pca.forward.Fit)
+
+#plot(pca.forward.Fit)
+
+pca.backward.Fit<- stepAIC(lower.lm, scope = list(upper = formula(upper.lm), lower = ~1), direction = "backward", trace = F)
+# summary(pca.backward.Fit)
+# plot(pca.backward.Fit)
+
+# The below code just replicates the pca.step.Fit for easy prediction for testing. Its a change in class object.
+
+pcadatarev <- data.frame(TARGET_WINS = cordata[,1],pcadata)
+pca.Fit <- pls::pcr(data = pcadatarev, formula = TARGET_WINS ~ .,scale = T,ncomp = 6)
+
+
 
 ```
 
-### 3.2 Lasso
+### 4.5 Lasso Regression.
+
+The variable selection property of Lasso regression is leveraged and an OLS fit is made on the variables selected by Lasso regression. Figure 12 shows the variable importance plot. The variables chosen are similar to the ines chosen manually. 
 
 ```{r}
 library(glmnet)
@@ -383,7 +421,7 @@ colnames(x) <- gsub(pattern = "TRUE", "", colnames(x))
 y <- cordata$TARGET_WINS
 grid = 10^seq(10,-2,length = 100)
 lasso.out <- cv.glmnet(x,y,alpha = 1)
-plot(lasso.out)
+#plot(lasso.out)
 lasso.Fit <- glmnet(x,y,alpha = 1, lambda = lasso.out$lambda.min)
 #summary(lasso.Fit)
 Candidate_Lasso <- names(coef(lasso.Fit)[order(abs(round(coef(lasso.Fit),3)),decreasing = T),])[2:10]
@@ -397,27 +435,21 @@ library(forcats)
 ggplot(data = ImpPredictors.Lasso,mapping = aes(y = Importance, x = fct_reorder(Predictors,Importance))) + geom_col(color = 'red', fill = 'red') + coord_flip() + theme_bw() + xlab("Predictors")
 # Proper naming of variables
 
+```
 
+
+
+```{r}
 # R Squared
-lasso.Fit$dev.ratio
+#lasso.Fit$dev.ratio
 
 lasso.pred <- predict(lasso.Fit,s = lasso.out$lambda.min,newx =x)
 lasso.resid <- y - as.numeric(lasso.pred)
-plot(y = lasso.resid, x = lasso.pred)
-qqnorm(lasso.resid)
-qqline(lasso.resid)
+# plot(y = lasso.resid, x = lasso.pred)
+# qqnorm(lasso.resid)
+# qqline(lasso.resid)
 
-# Using Variable into OLS regression
 Lasso.OLS.Fit <- lm(data = cordata[,c('TARGET_WINS',Candidate_Lasso)], formula = TARGET_WINS ~ .)
-summary(Lasso.OLS.Fit)
-
-Lasso.Step.Fit <- stepAIC(Lasso.OLS.Fit, scope = list(lower = ~1, upper = formula(Lasso.OLS.Fit)),direction = 'both')
-summary(Lasso.Step.Fit)
-plot(Lasso.Step.Fit)
-par(mfrow = c(1,2))
-plot(y = lasso.resid, x = lasso.pred,ylim = c(-40,40))
-plot(Lasso.Step.Fit$fitted.values, Lasso.Step.Fit$residuals,ylim = c(-40,40),xlim = c(45,110),xlab = "Fitted.OLS", ylab = "residuals")
-
 formula_Lasso.OLS <- as.character(formula(Lasso.OLS.Fit))[3]
 predictors_Lasso.OLS <- unlist(strsplit(formula_Lasso.OLS, split = "+",fixed = T))
 coef.Lasso.OLS <- round(coefficients(Lasso.OLS.Fit),2)
@@ -425,17 +457,39 @@ signs.Lasso.OLS <- ifelse(sign(coef.Lasso.OLS)==1,"+", "-")
 Betas.Lasso.OLS <- paste(abs(coef.Lasso.OLS[2:length(coef.Lasso.OLS)]),"*",predictors_Lasso.OLS)
 eqn.Lasso.OLS <- paste("TARGET_WINS =", paste(coef.Lasso.OLS[1],paste(paste(signs.Lasso.OLS[2:length(signs.pca.step)],Betas.Lasso.OLS),collapse = " ")))
 
+```
+
+The following model is fit :
+
+** `r eqn.Lasso.OLS`**
+
+Like the Simple model, this is more or less interpretable with Batting 2B variable being insigniticant and sign of Fielding DP being counter intuitive. The R-Squared is about 33%. A good candidate model.
+
+```{r}
+# Using Variable into OLS regression
+
+summary(Lasso.OLS.Fit)
+par(mfrow = c(2,2))
+plot(Lasso.OLS.Fit,which = 1:4)
+# Lasso.Step.Fit <- stepAIC(Lasso.OLS.Fit, scope = list(lower = ~1, upper = formula(Lasso.OLS.Fit)),direction = 'both')
+# summary(Lasso.Step.Fit)
+# plot(Lasso.Step.Fit)
+# par(mfrow = c(1,2))
+# plot(y = lasso.resid, x = lasso.pred,ylim = c(-40,40))
+# plot(Lasso.Step.Fit$fitted.values, Lasso.Step.Fit$residuals,ylim = c(-40,40),xlim = c(45,110),xlab = "Fitted.OLS", ylab = "residuals")
+
+
 
 # cordata$Pitch_H_Outlier <- as.numeric(cordata$Pitch_H_Outlier)
 # summary(lm(data = cordata ,  TARGET_WINS ~ flag + TEAM_FIELDING_E + TEAM_FIELDING_DP + TEAM_BATTING_H  + TEAM_BASERUN_CS ))
 ```
 
 
-### 3.3 Partial Least Squares (PLS) Regression
+### 4.6  Partial Least Squares (PLS) Regression
 
-How to add indicator variables to the model?
+Like the PCA, PLS regression was attempted to increase the predictive performance by sacrificing interpretability. 
 
-```{r}
+```{r, fig.cap="PLS component selection"}
 plsdf <- data.frame(x,y)
 # plsdf <- plsdf %>% dplyr::filter(Pitch_H_Outlier == F)
 colnames(plsdf)[20] <- "TARGET_WINS"
@@ -444,10 +498,10 @@ pls.Fit <- pls::plsr(TARGET_WINS ~ ., data  = plsdf[,which(colnames(plsdf) %in% 
 
 library(pls)
 validationplot(pls.Fit)
-summary(pls.Fit)
+#summary(pls.Fit)
 library(caret)
-plot(varImp(pls.Fit),top = 10)
-plot(pls::R2(pls.Fit))
+# plot(varImp(pls.Fit),top = 10)
+# plot(pls::R2(pls.Fit))
 
 pls.df <- data.frame(pls.Fit$scores[,1:4],plsdf$TARGET_WINS)
 colnames(pls.df)[5] <- "TARGET_WINS"
@@ -455,29 +509,41 @@ colnames(pls.df)[5] <- "TARGET_WINS"
 # test to make sure if the PLS does the OLS on the component scores 
 
 pls.lm.Fit <- lm(data = pls.df,formula = TARGET_WINS ~ ., )
-
-plot(pls.lm.Fit)
-summary(pls.lm.Fit)
-anova(pls.lm.Fit)
-
-ImpVars <- function(loadingsmatrix,k) {
-  purrr::map(.x = 1:k,.f = function(x) {names(loadingsmatrix[order(abs(loadingsmatrix[,x]),decreasing = T),x])})
-}
-
 formula_pls <- as.character(formula(pls.lm.Fit))[3]
 predictors_pls <- unlist(strsplit(formula_pls, split = "+",fixed = T))
 coef.pls <- round(coefficients(pls.lm.Fit),2)
 signs.pls <- ifelse(sign(coef.pls)==1,"+", "-")
 Betas.pls <- paste(abs(coef.pls[2:length(coef.pls)]),"*",predictors_pls)
 eqn.pls <- paste("TARGET_WINS =", paste(coef.pls[1],paste(paste(signs.pls[2:length(signs.pls)],Betas.pls),collapse = " ")))
+```
+The following model is fit 
+
+**`r eqn.pls`**
+
+This regression has the highest R-Squared so far of 43%. It will be interesting to evaluate the models against all the data.
+
+```{r}
+
+summary(pls.lm.Fit)
+anova(pls.lm.Fit)
+par(mfrow = c(2,2))
+plot(pls.lm.Fit, which = 1:4)
+
+ImpVars <- function(loadingsmatrix,k) {
+  purrr::map(.x = 1:k,.f = function(x) {names(loadingsmatrix[order(abs(loadingsmatrix[,x]),decreasing = T),x])})
+}
+
+
 
 
 ```
 
 
-### 3.4 Random forest
+### 4.7 Random forest
 
-```{r, eval=F }
+Random forest method was used for feature selection and the resultant features were used to fit a OLS regression. 
+
+```{r,fig.cap = "Variable importance" }
 set.seed(7)
 # load the library
 library(mlbench)
@@ -494,22 +560,32 @@ plot(results, type=c("g", "o"))
 
 
 form <- paste("TARGET_WINS ~",paste(c( "TEAM_FIELDING_E", "TEAM_BATTING_H", "TEAM_BATTING_BB", "TEAM_PITCHING_SO"),collapse = "+"))
-
 rf.Fit <- lm(data =cordata,formul = form)
-summary(rf.Fit)
-
 formula_rf <- as.character(formula(rf.Fit))[3]
 predictors_rf <- unlist(strsplit(formula_rf, split = "+",fixed = T))
 coef.rf <- round(coefficients(rf.Fit),2)
 signs.rf <- ifelse(sign(coef.rf)==1,"+", "-")
 Betas.rf <- paste(abs(coef.rf[2:length(coef.rf)]),"*",predictors_rf)
 eqn.rf <- paste("TARGET_WINS =", paste(coef.rf[1],paste(paste(signs.rf[2:length(signs.rf)],Betas.rf),collapse = " ")))
+```
+
+The following model was fit
+
+**`r eqn.rf`**
+
+
+```{r}
+summary(rf.Fit)
+
+
 
 
 ```
 
 
-### 4. Imputing and Data Prep for testing
+# 5. Imputing and Data Prep for testing
+
+From section 4 it is seen that the variables that have missing data were deemed important. Hence we'll impute data using K nearest neighbor technique , with k = 5.  The models fit in above section are evaluated against the full data and summarized in the section below.
 
 ```{r}
 MoneyBallDataPrep <- function(Path) {
@@ -553,9 +629,9 @@ MoneyBallDataPrep <- function(Path) {
 ```
 
 
-```{r, eval=F}
+```{r}
 TestData <- MoneyBallDataPrep(Path = 'MoneyBall.csv')
-
+TestData$Pitch_H_Outlier <- as.numeric(TestData$Pitch_H_Outlier)
 # Test of Simple model
 
 simple.Fitted <- predict(simple.Fit, newdata = TestData)
@@ -582,6 +658,7 @@ AdjRSquared_Simple.Step <- summary(Simple.step.Fit)$adj.r.squared
 
 # Test of PCR 
 xtest <- TestData[,pcavars]
+#xtest$Pitch_H_Outlier <- as.logical(xtest$Pitch_H_Outlier)
 pca.fitted <- predict(pca.Fit,newdata = xtest,ncomp = 6)
 MAE_pca.Fit <- mean(abs(TestData$TARGET_WINS - pca.fitted))
 MSE_pca.Fit <- mean((TestData$TARGET_WINS - pca.fitted)^2)
@@ -623,28 +700,37 @@ ModelComparison <- data.frame(Type = c("Simple","Simple revised", "Stepwise", "P
 ```
 
 
-### 5. Model Selection
+### 6. Model Selection
 
-```{r, eval=F}
+```{r}
 pander::pandoc.table(ModelComparison)
 ```
 
-## 6. Prediction
+From the table above, the Simple revised model is the best canidate from the perspective of MAE and Simplicity. While the PLS model have the highest R-Squared, the MAE and interpretability is not sufficient for selection. 
 
-```{r, eval=F}
+## 7. Prediction
+
+```{r}
 PredictionData <- read.csv(file = "MoneyBall_Test.csv")
 Processed.PredictData <- MoneyBallDataPrep("MoneyBall_Test.csv")
 P_TARGET_WINS <- round(predict(simple.rev.Fit,newdata = Processed.PredictData),0)
-hist(P_TARGET_WINS)
+Processed.PredictData$P_TARGET_WINS <- P_TARGET_WINS
+write.csv(file = "MoneyBall_Test_Seshadri.csv",Processed.PredictData)
+#hist(P_TARGET_WINS)
 ```
 
 
-<!-- \appendix \begin {center} \section {APPENDIX} \end {center} -->
+# Appendix
 
-<!-- # A.1 Data dictionary -->
+# A.1 Data dictionary
 
-```{r, eval=F}
+```{r, echo=F}
 dictionary <- readxl::read_xlsx('DataDictionary_Baseball.xlsx', sheet = 1)
 knitr::kable(dictionary)
 ```
 
+# A.2 Code
+
+```{r, ref.label= knitr::all_labels(), echo=TRUE, eval=FALSE, tidy = T}
+
+```
