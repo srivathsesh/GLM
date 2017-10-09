@@ -710,6 +710,8 @@ From the table above, the Simple revised model is the best canidate from the per
 
 ## 7. Prediction
 
+A file named MoneyBall_Test_Seshadri.csv contains the prediction 
+
 ```{r}
 PredictionData <- read.csv(file = "MoneyBall_Test.csv")
 Processed.PredictData <- MoneyBallDataPrep("MoneyBall_Test.csv")
