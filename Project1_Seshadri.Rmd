@@ -2,7 +2,10 @@
 title: "Project1"
 author: "Sri Seshadri"
 date: "9/30/2017"
-output: pdf_document
+output: 
+  pdf_document:
+  toc : true
+  toc_depth: 2
 ---
 
 ```{r setup, include=FALSE}
@@ -11,14 +14,50 @@ library(magrittr)
 library(dplyr)
 ```
 
-## 1. Introduction
+# 1. Introduction
+
+An sports investor is interested in investing in the sport of baseball. The investor is looking at investments ranging from team ownership, collectibles, apparel and legal sports betting. There is interest in understanding what are factors that influence teams' winning and predicting the number of wins in a season, so that an informed decision is made on the investment. To enable decision making, historical performance of baseball teams from the year 1871 to 2006 is analyzed and modeled for predicting number of wins in a season. This report discusses the analysis and the predictive models developed using the historical data. It should be noted that the data scientist who analyzed the data does not have subject matter expertise in the area of baseball. It is expected that the model(s) may need fine tuning based on feedback from subject matter experts. 
+
+## 1.1 Analysis Process
+
+The following process steps were used for building a predicitve models:
+
+* Exploratory Data Analysis
+    + Perform data quality checks, quantify missing data.
+      - Check for systemic loss in data
+    + Understand relationships amongst predictors and between target variables and predictors.
+      - Create attribure or indicator variables to aid data cleaning.
+      - Filter out clean data for feature selection and model building.
+* Feature Selection
+    + Subset complete records to model wins in season
+      - Use different modeling techniques to select candidate predictors.
+      - If data is missing for candidate predictors, identify imputing methods.
+* Model Building
+    + Test models that were build using complete records on the entire data set with imputed data.
+    + Compare models based on Adjusted R squared, AIC, MAE
+      - Check if models make physical sense. 
+* Initial model deployment
+    + Deploy model to predict wins on out of sample data.
+    + Discuss models and results with subject matter experts.
+    + Fine tune model and re-test
+* Final model deployment
+    + Investment decisions.
+  
+
+## 1.2 Executive summary
+
+The below model was chosen from a candidate pool of 10 models (8 models are discussed in this report) for its simplicity, interpretability and comparable mean absolute error.
+
+**TARGET_WINS = 34.12 + 0.01 * TEAM_BATTING_H + 0.1 * TEAM_BATTING_3B + 0.12 * TEAM_BATTING_HR + 0.04 * TEAM_BATTING_BB - 0.02 * TEAM_BATTING_SO + 0.07 * TEAM_BASERUN_SB - 5.49 * BatHR_Filter**
+
+The model has an average error (MAE) of ± 11 wins. The data scientist welcomes suggestions from subject matter expertise to further iterate on the model building process to produce a better model. 
 
 
+# 2. About the Data
 
-## 2. Exploratory Data Analysis (EDA)
+The data provided has approximately 2300 rows, each representing a team's performance in the seasons during the years 1871 to 2006. The statistics are adjusted to match a performance of 162 game season. The dictionary of the variables in the data are provided in appendix A.1. Table 1 below shows statistics of the variables in the data. 
 
-
-### 2.1 About the data
+It can be seen that there are multiple variables with missing data. The systemic nature of missing data is discussed in the next section, the pattern in missing leads us to assume that the missing data is likely from the 18th and the early 19th century, where sophisticated data collection may not have existed. If the variables that contain missing data are deemed important for prediciting number of wins, then an appropriate method would be used for data imputation. 
 
 
 ```{r}
@@ -34,11 +73,13 @@ rownames(sanitycheck) <- rowname
 knitr::kable(round(sanitycheck,2), caption = "Summary Stats and missing values")
 ```
 
-### 2.2 Missing data
+# 3. Exploratory Data Analysis (EDA)
 
-Where are they from? Systemic pattern?
+## 3.1 Missing data
 
-```{r, fig.width=8}
+Figure 1, shows that the missing data is systematic and they correspond to the lower end of the distributions of home runs by batters and strike-outs. Its also seen that the home-runs and strike-outs are bi-modal in nature. The complete cases from the data are used to explore the relationship amongst the predictor variables and the relationship between Wins and the other predictors. The exploratory data analysis is used as a tool for feature selection for model building.
+
+```{r, fig.width=8,fig.cap='Rows with missing data is from the lower end of the distributions of Home runs and Strike outs'}
 # indicator variables for record missing
 MB <- MB %>% 
         mutate(Missing_BatSO = as.logical(ifelse(is.na(TEAM_BATTING_SO),1,0))) %>%
@@ -57,27 +98,40 @@ gridExtra::grid.arrange(p1,p2,ncol = 2)
 
 ```
 
-### 2.3 Relationships among variables
+## 3.2 Correlations in the data
 
+Figure 2 shows the correlation plot of the variables in the data. It is seen that team batting home runs and pitching home runs are strongly correlated amd so are walks by batters and walks allowed when pitching. Similary for the strike outs. The fielding errors and home runs are negatively correlated; so is triples with fielding errors. It will be interesting to understand the reason for this behaviour from the subject matter experts. 
 
-```{r}
+The target wins variable have weak correlations with many variables without a strong correlation with any of the variables in the data. The combined contributions of the predictor variables to explain the number of wins is explored in the sections below.
+
+```{r, fig.cap= 'Correlation plot'}
 cordata <- MB %>% dplyr::select(cols[c(-1,-11)]) 
 cordata <- cordata[complete.cases(cordata),]
 corrplot::corrplot(cor(cordata),tl.cex = 0.8)
 ```
-#### 2.3.1 Exploring the relationships further
 
-What are the linear relationships with varying slopes - parallel lines?
+
+
+## 3.3 Relationship between variables.
+
+
 
 ```{r}
-ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Missing)) + geom_point()
-ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, fill = Missing, color = Missing)) + geom_histogram(alpha = 0.5) + facet_grid(Missing ~ .)
+#ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, fill = Missing, color = Missing)) + geom_histogram(alpha = 0.5) + facet_grid(Missing ~ .)
+ED1 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Missing)) + geom_point() + theme_bw()
+
 
 MB <- MB %>% 
   dplyr::mutate(Pitch_H_Outlier = as.logical(ifelse(TEAM_PITCHING_H >= 1890, 1,0))) 
 MB_test <- MB %>% filter(Missing == F)
-  ggplot(data = MB_test,mapping = aes(x = TEAM_PITCHING_H, color = Pitch_H_Outlier, fill = Pitch_H_Outlier)) + geom_histogram(alpha = 0.5) + theme_bw()
+ED2 <- ggplot(data = MB_test,mapping = aes(x = TEAM_PITCHING_H, color = Pitch_H_Outlier, fill = Pitch_H_Outlier)) + geom_histogram(alpha = 0.5) + theme_bw()
   
+
+
+
+```
+
+```{r}
 ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
 
 ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_SO, y = TEAM_BATTING_SO, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
@@ -86,9 +140,8 @@ ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_BB, y = TEAM_BATTING_BB, 
 
 ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
 
-
-
 ```
+
 
 
 #### 2.3.2  Indicator variables 
@@ -160,11 +213,11 @@ plot(simple.Fit,which = 4)
 ## Generating equation
 coef.simple <- round(coefficients(simple.Fit),2)
 signs.simple <- ifelse(sign(coef.simple)==1,"+", "-")
-Betas.simple <- paste(abs(coef.simple[2:length(coef.simple)]),"*",simple.Pred)
+Betas.simple <- paste(abs(coef.simple[2:length(coef.simple)]),"*",simple.Pred[-1])
 eqn.simple <- paste("TARGET_WINS =", paste(coef.simple[1],paste(paste(signs.simple[2:length(signs.simple)],Betas.simple),collapse = " ")))
 
 
-simple.rev.Pred <- simple.Pred[which(simple.Pred %in% c("TEAM_BASERUN_CS","Pitch_H_Outlier")) * -1]
+simple.rev.Pred <- simple.Pred[which(simple.Pred %in% c("TEAM_BASERUN_CS","Pitch_H_Outlier","TEAM_BATTING_2B","TEAM_FIELDING_DP")) * -1]
 simple.rev.Fit <- lm(formula = TARGET_WINS ~ . , data = cordata[,simple.rev.Pred])
 summary(simple.rev.Fit)
 car::vif(simple.rev.Fit)
@@ -385,6 +438,14 @@ form <- paste("TARGET_WINS ~",paste(c( "TEAM_FIELDING_E", "TEAM_BATTING_H", "TEA
 rf.Fit <- lm(data =cordata,formul = form)
 summary(rf.Fit)
 
+formula_rf <- as.character(formula(rf.Fit))[3]
+predictors_rf <- unlist(strsplit(formula_rf, split = "+",fixed = T))
+coef.rf <- round(coefficients(rf.Fit),2)
+signs.rf <- ifelse(sign(coef.rf)==1,"+", "-")
+Betas.rf <- paste(abs(coef.rf[2:length(coef.rf)]),"*",predictors_rf)
+eqn.rf <- paste("TARGET_WINS =", paste(coef.rf[1],paste(paste(signs.rf[2:length(signs.rf)],Betas.rf),collapse = " ")))
+
+
 ```
 
 
@@ -434,6 +495,15 @@ MoneyBallDataPrep <- function(Path) {
 
 ```{r}
 TestData <- MoneyBallDataPrep(Path = 'MoneyBall.csv')
+
+# Test of Simple model
+
+simple.Fitted <- predict(simple.Fit, newdata = TestData)
+MAE_Simple.Fit <- mean(abs(TestData$TARGET_WINS - simple.Fitted))
+MSE_Simple.Fit <- mean((TestData$TARGET_WINS - simple.Fitted)^2)
+AIC_Simple.Fit <- AIC(simple.Fit)
+AdjRSquared_Simple.Fit <- summary(simple.Fit)$adj.r.squared
+
 # Test of Simple.rev.Fit
 simple.rev.fitted <- predict(simple.rev.Fit,newdata = TestData)
 #plot(TestData$TARGET_WINS , simple.rev.fitted)
@@ -485,18 +555,36 @@ MSE_rf.Fit <- mean((TestData.rev$TARGET_WINS - rf.Fitted)^2)
 AIC_rf.Fit <- AIC(rf.Fit)
 AdjRSquared_AIC_rf.Fit <- summary(rf.Fit)$adj.r.squared
 
-ModelComparison <- data.frame(Type = c("Simple", "Stepwise", "Prin.Comp.Regression","Lasso Predictors", "Partial Least Squares", "Random forest predictors" ),
-                              Formula = c(as.character(formula(simple.rev.Fit)),as.character(formula(Simple.step.Fit)),as.character(formula(pca.step.Fit)),as.character(formula(Lasso.OLS.Fit)),as.character(formula(pls.lm.Fit)), as.character(formula(rf.Fit))),
-                              Adj.R.Squared = c(AdjRSquared_Simple.rev.Fit,AdjRSquared_Simple.Step,AdjRSquared_pca.Fit,AdjRSquared_Lasso.OLS.Fit,AdjRSquared_pls.Fit,AdjRSquared_AIC_rf.Fit),
-                              AIC = c(AIC_Simple.rev.Fit,AIC_simple.step.Fit,AdjRSquared_pca.Fit,AdjRSquared_Lasso.OLS.Fit,AdjRSquared_pls.Fit,AdjRSquared_AIC_rf.Fit),
-                              MAE = c(MAE_Simple.rev.Fit,MAE_simple.step.Fit,MAE_pca.Fit,MAE_lasso.OLS.Fit,MAE_pls.Fit,MAE_rf.Fit))
+ModelComparison <- data.frame(Type = c("Simple","Simple revised", "Stepwise", "Prin.Comp.Regression","Lasso Predictors", "Partial Least Squares", "Random forest predictors" ),
+                              Formula = c(eqn.simple,eqn.simple.rev,eqn.simple.step,eqn.pca.step,eqn.Lasso.OLS,eqn.pls,eqn.rf),
+                              Adj.R.Squared = c(AdjRSquared_Simple.Fit,AdjRSquared_Simple.rev.Fit,AdjRSquared_Simple.Step,AdjRSquared_pca.Fit,AdjRSquared_Lasso.OLS.Fit,AdjRSquared_pls.Fit,AdjRSquared_AIC_rf.Fit),
+                              AIC = c(AIC_Simple.Fit,AIC_Simple.rev.Fit,AIC_simple.step.Fit,AIC_pca.Fit,AIC_Lasso.OLS.Fit,AIC_pls.Fit,AIC_rf.Fit),
+                              MAE = c(MAE_Simple.Fit,MAE_Simple.rev.Fit,MAE_simple.step.Fit,MAE_pca.Fit,MAE_lasso.OLS.Fit,MAE_pls.Fit,MAE_rf.Fit))
 ```
 
 
-### 5. Testing models
+### 5. Model Selection
 
 ```{r}
 pander::pandoc.table(ModelComparison)
 ```
 
+## 6. Prediction
+
+```{r}
+PredictionData <- read.csv(file = "MoneyBall_Test.csv")
+Processed.PredictData <- MoneyBallDataPrep("MoneyBall_Test.csv")
+P_TARGET_WINS <- round(predict(simple.rev.Fit,newdata = Processed.PredictData),0)
+hist(P_TARGET_WINS)
+```
+
+
+\appendix \begin {center} \section {APPENDIX} \end {center}
+
+# A.1 Data dictionary
+
+```{r}
+dictionary <- readxl::read_xlsx('DataDictionary_Baseball.xlsx', sheet = 1)
+knitr::kable(dictionary)
+```
 
