@@ -4,8 +4,8 @@ author: "Sri Seshadri"
 date: "9/30/2017"
 output: 
   pdf_document:
-  toc : true
-  toc_depth: 2
+    toc : true
+    toc_depth: 3
 ---
 
 ```{r setup, include=FALSE}
@@ -13,6 +13,9 @@ knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
 library(magrittr)
 library(dplyr)
 ```
+
+\pagebreak
+
 
 # 1. Introduction
 
@@ -46,7 +49,7 @@ The following process steps were used for building a predicitve models:
 
 ## 1.2 Executive summary
 
-The below model was chosen from a candidate pool of 10 models (8 models are discussed in this report) for its simplicity, interpretability and comparable mean absolute error.
+The below model was chosen from a candidate pool of 10 models (7 models are discussed in this report) for its simplicity, interpretability and comparable mean absolute error.
 
 **TARGET_WINS = 34.12 + 0.01 * TEAM_BATTING_H + 0.1 * TEAM_BATTING_3B + 0.12 * TEAM_BATTING_HR + 0.04 * TEAM_BATTING_BB - 0.02 * TEAM_BATTING_SO + 0.07 * TEAM_BASERUN_SB - 5.49 * BatHR_Filter**
 
@@ -73,7 +76,7 @@ rownames(sanitycheck) <- rowname
 knitr::kable(round(sanitycheck,2), caption = "Summary Stats and missing values")
 ```
 
-# 3. Exploratory Data Analysis (EDA)
+# 3. Exploratory Data Analysis (EDA) & Data Preparation
 
 ## 3.1 Missing data
 
@@ -104,7 +107,7 @@ Figure 2 shows the correlation plot of the variables in the data. It is seen tha
 
 The target wins variable have weak correlations with many variables without a strong correlation with any of the variables in the data. The combined contributions of the predictor variables to explain the number of wins is explored in the sections below.
 
-```{r, fig.cap= 'Correlation plot'}
+```{r, fig.cap= 'Correlation plot',fig.width=4}
 cordata <- MB %>% dplyr::select(cols[c(-1,-11)]) 
 cordata <- cordata[complete.cases(cordata),]
 corrplot::corrplot(cor(cordata),tl.cex = 0.8)
@@ -114,47 +117,63 @@ corrplot::corrplot(cor(cordata),tl.cex = 0.8)
 
 ## 3.3 Relationship between variables.
 
+Left panel of Figure 3 shows the extreme values in hits allowed by teams and they correspond to rows where some variables have missing values. Zooming in on the set of data with complete cases (no missing data in any of the columns), it is seen that hits allowed has two contiguous distributions. The right panel of figure 3 shows the extreme values. Figure 4 shows the change in relationship amongst Base hits and hits allowed; strikeouts by pitcher; walks allowed by pitchers and walks by batters; is associated with the extreme values in hits allowed by pitchers.
 
-
-```{r}
+```{r, fig.cap= "Extreme values in Hits allowed ", fig.height= 5}
 #ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, fill = Missing, color = Missing)) + geom_histogram(alpha = 0.5) + facet_grid(Missing ~ .)
-ED1 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Missing)) + geom_point() + theme_bw()
+ED1 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Missing)) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
 
 
 MB <- MB %>% 
   dplyr::mutate(Pitch_H_Outlier = as.logical(ifelse(TEAM_PITCHING_H >= 1890, 1,0))) 
 MB_test <- MB %>% filter(Missing == F)
-ED2 <- ggplot(data = MB_test,mapping = aes(x = TEAM_PITCHING_H, color = Pitch_H_Outlier, fill = Pitch_H_Outlier)) + geom_histogram(alpha = 0.5) + theme_bw()
+ED2 <- ggplot(data = MB_test,mapping = aes(x = TEAM_PITCHING_H, color = Pitch_H_Outlier, fill = Pitch_H_Outlier)) + geom_histogram(alpha = 0.5) + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
   
-
+gridExtra::grid.arrange(ED1,ED2, ncol = 2)
 
 
 ```
 
+```{r, fig.cap= "Distinct relationships between variables attributed to outliers in Hits allowed"}
+ED3 <- ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Pitch_H_Outlier )) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+
+ED4 <- ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_SO, y = TEAM_BATTING_SO, color = Pitch_H_Outlier )) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+
+ED5 <- ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_BB, y = TEAM_BATTING_BB, color = Pitch_H_Outlier )) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+
+ED6 <- ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()+ theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+
+gridExtra::grid.arrange(ED3,ED4,ED5,ED6, nrow = 2, ncol = 2)
+```
+
+\pagebreak
+
+### 3.3.1  Indicator variables 
+
+To effectively capture the various phenomena (such as the difference in slopes in Fig 4) either attributed to or associated with various sections in the data, indicator variables are used. Indicator variables can be used as dummy variables in regression models to model the change in behaviors. The following table lists the indicator variables created for effective modeling. Figure 5 and 6 shows the indicator variables capturing the intended section of the population.
+
 ```{r}
-ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_H, y = TEAM_BATTING_H, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-
-ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_SO, y = TEAM_BATTING_SO, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-
-ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_BB, y = TEAM_BATTING_BB, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-
-ggplot(data = MB_test, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-
+indicators <- data.frame(Name = c("Pitch_H_Outlier","BatHR_Filter","BatSO_Filter","PitSO_Filter","AltSlope"), Purpose = c("Outlier filter", "bimodal capture", "Outlier filter","Outlier filter","Capture parallel slope" ), Criteria = c("TEAM_PITCHING_H >= 1890","TEAM_BATTING_HR <= 59","TEAM_BATTING_SO <= 250","TEAM_PITCHING_SO","setdiff(setdiff(Pitch_H_outlierT,BatSO_Filter_T), PitSOFilter_T)"))
+library(kableExtra)
+knitr::kable(indicators,caption = "Indicator variables description") %>% 
+  kable_styling(font_size = 7)
 ```
 
 
-
-#### 2.3.2  Indicator variables 
-
-```{r}
+```{r, fig.cap = "indicator variables",fig.height= 4}
 MB <- MB  %>% 
     mutate(BatHR_Filter = as.logical(ifelse(TEAM_BATTING_HR <= 59, 1,0))) %>% 
     mutate(BatSO_Filter = as.logical(ifelse(TEAM_BATTING_SO <= 250, 1,0))) %>% 
     mutate(PitSO_Filter = as.logical(ifelse(TEAM_PITCHING_SO > 2000, 1, 0)))
 
-I1 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = BatHR_Filter, fill = BatHR_Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
-I2 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_SO, color = BatSO_Filter, fill = BatSO_Filter)) + geom_histogram(alpha = 0.5) + theme_bw()
+I1 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_HR, color = BatHR_Filter, fill = BatHR_Filter)) + geom_histogram(alpha = 0.5) + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+I2 <- ggplot(data = MB, mapping = aes(x = TEAM_BATTING_SO, color = BatSO_Filter, fill = BatSO_Filter)) + geom_histogram(alpha = 0.5) + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
 gridExtra::grid.arrange(I1,I2,ncol = 2, nrow = 2)
+
+```
+
+
+```{r, fig.cap="Indicator variables contd"}
  #MB  %>%  dplyr::filter(Missing == T) %>% 
 #ggplot(mapping = aes(x = TEAM_PITCHING_SO, fill = PitSO_Filter, color = PitSO_Filter )) + geom_histogram(alpha = 0.5) + theme_bw()
 colnames(MB)[1] <- "INDEX"
@@ -167,16 +186,20 @@ MB <- MB %>% mutate (AltSlope = as.logical(ifelse(INDEX %in% setdiff(setdiff(Pit
 MB$HRSO_Filter <- as.logical(ifelse(rowSums(MB[,c('BatHR_Filter','BatSO_Filter')]) > 0 ,1, 0))
 
 
-I3 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw()
-I4 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = AltSlope )) + geom_point() + theme_bw()
-I5 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = AltSlope)) + geom_point() + theme_bw()
-I6 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw()
-I7 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw()
-I8 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color =  BatSO_Filter)) + geom_point() + theme_bw()
+I3 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = Pitch_H_Outlier )) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+I4 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color = AltSlope )) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+I5 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = AltSlope)) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+I6 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = BatSO_Filter)) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+I7 <- ggplot(data = MB, mapping = aes(y = TEAM_BATTING_SO, x = TEAM_PITCHING_SO, color = PitSO_Filter)) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+I8 <- ggplot(data = MB, mapping = aes(x = TEAM_PITCHING_HR, y = TEAM_BATTING_HR, color =  BatSO_Filter)) + geom_point() + theme_bw() + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
 gridExtra::grid.arrange(I3,I4,I5,I6,I7,I8, ncol = 2, nrow = 3)
 ```
 
-```{r}
+### 3.3.2 Target Wins Vs Potential predictors
+
+The effect of indicator variables on relationship between Target Wins and potential predictors is showm in figure 7. The data is subsetted to exclude outliers in strike-outs by batters and pitchers.
+
+```{r,fig.cap="Target Wins Vs Predictors by AltSlope and Pitch_H_Outlier"}
 reqcols <- colnames(MB)[c(-1,-11,-18:-23,-29)]
 cordata <- MB %>% dplyr::select(reqcols) 
 reqrows <- complete.cases(cordata)
@@ -185,30 +208,37 @@ cordata <- cordata[reqrows,]
 
 cordata <- cordata %>% 
             dplyr::filter(BatSO_Filter == !T) %>% 
-            dplyr::filter(PitSO_Filter == !T)
-ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = AltSlope)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = as.factor(Pitch_H_Outlier))) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
-ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = AltSlope)) + geom_point() + theme_bw()+ geom_smooth(method = "lm")
+            dplyr::filter(PitSO_Filter == !T) 
+cordata$Pitch_H_Outlier <- as.factor(cordata$Pitch_H_Outlier)
+
+T1 <- ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = AltSlope)) + geom_point() + theme_bw()+ geom_smooth(method = "lm") + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+T2 <- ggplot(data = cordata, mapping = aes(y = TARGET_WINS, x = TEAM_BATTING_HR, color = Pitch_H_Outlier)) + geom_point() + theme_bw()+ geom_smooth(method = "lm") + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+T3 <- ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = Pitch_H_Outlier)) + geom_point() + theme_bw()+ geom_smooth(method = "lm") + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+T4 <- ggplot(data = cordata, mapping = aes(x = TEAM_FIELDING_E, y = TARGET_WINS, color = AltSlope)) + geom_point() + theme_bw()+ geom_smooth(method = "lm") + theme(axis.title = element_text(size = 8),legend.title = element_text(size = 8) )
+
+gridExtra::grid.arrange(T1,T2,T3,T4,ncol=2,nrow = 2)
+cordata$Pitch_H_Outlier <- as.numeric(cordata$Pitch_H_Outlier)
 ```
 
-## 3.0 Feature selections
+\pagebreak
 
-What are the important features amongst complete cases?
+# 4. Feature selections & Model building
 
+The feature selections and Model building steps of the analysis process are iterative. The modeling process begins with a selection of subset of variables that are theoretically correlated with wins. When predictors are related or correalted to eachother, refer figure 2, only one of the predictors from the pair of correlated variables is selected for modeling. The feature selection and model building process is initially built on complete cases or records. Then model is then tested on the entire data set after filling in the missing values (if needed) by imputation.
 
+In the sections below, several models are discussed such as:
 
-Would a simple model work?
+1. Simple multiple regression models, with manual feature selection (2 nos).
+2. Stepwise automated variable selection.
+3. Principle components regression (PCR).
+4. Lasso regression variable selection and OLS regression.
+5. Partial Least Squares regression (PLS).
+6. Random forest feature selection and OLS regression.
 
 ```{r}
 
 simple.Pred <- colnames(cordata)[c(1:9,15:17)]
 simple.Fit <- lm(formula = TARGET_WINS ~ . , data = cordata[,simple.Pred])
-summary(simple.Fit)
-car::vif(simple.Fit)
-plot(simple.Fit)
-plot(simple.Fit,which = 4)
-# length(simple.Pred)
 
 ## Generating equation
 coef.simple <- round(coefficients(simple.Fit),2)
@@ -217,12 +247,9 @@ Betas.simple <- paste(abs(coef.simple[2:length(coef.simple)]),"*",simple.Pred[-1
 eqn.simple <- paste("TARGET_WINS =", paste(coef.simple[1],paste(paste(signs.simple[2:length(signs.simple)],Betas.simple),collapse = " ")))
 
 
+
 simple.rev.Pred <- simple.Pred[which(simple.Pred %in% c("TEAM_BASERUN_CS","Pitch_H_Outlier","TEAM_BATTING_2B","TEAM_FIELDING_DP")) * -1]
 simple.rev.Fit <- lm(formula = TARGET_WINS ~ . , data = cordata[,simple.rev.Pred])
-summary(simple.rev.Fit)
-car::vif(simple.rev.Fit)
-plot(simple.rev.Fit)
-plot(simple.rev.Fit,which = 4)
 
 ## Generating equation
 coef.simple.rev <- round(coefficients(simple.rev.Fit),2)
@@ -231,6 +258,39 @@ Betas.simple.rev <- paste(abs(coef.simple.rev[2:length(coef.simple.rev)]),"*",si
 eqn.simple.rev <- paste("TARGET_WINS =", paste(coef.simple.rev[1],paste(paste(signs.simple.rev[2:length(signs.simple.rev)],Betas.simple.rev),collapse = " ")))
 
 ```
+
+## 4.1 Multiple linear regression (Simple models)
+
+The following model was fit with manual choice of variables by refering the correlation plot in figure 2. When manual choice of features/ variables were made, the theoretical effect was born in mind. However, no subject matter expertise was used in selection.
+
+**`r eqn.simple`**
+
+It is found that "BASERUN_CS" and "PITCH_H_Outlier" variables were statistically not significant from zero. Also the model meshes with theoretical effect for most part except that the coefficent for FIELDING_DP is negative, counter to expectation. The adjusted R-squared of 35% leaves room for improvement.
+
+```{r, fig.cap="Simple model results"}
+# Simple model
+
+summary(simple.Fit)
+#car::vif(simple.Fit)
+par(mfrow = c(2,2))
+plot(simple.Fit,which = 1:3)
+plot(simple.Fit,which = 4)
+# length(simple.Pred)
+
+```
+
+## 4.2 Revisied simple multiple linear regression model
+
+From the above model, the variables "BASERUN_CS" and "PITCH_H_Outlier" are removed and a revised model is fit. This model is interpretable and is in line with theoretical expectations. The indicator variable correctly identifies the effect of low values of home runs leading up to fewer predicted wins.  However adjusted R-Squared value of 32% leaves room for improvement.
+
+```{r,fig.cap="Revised Simple model results"}
+summary(simple.rev.Fit)
+car::vif(simple.rev.Fit)
+plot(simple.rev.Fit, which = 1:3)
+plot(simple.rev.Fit,which = 4)
+
+```
+
 ### 3.1 Automated Variable selection
 
 ```{r}
@@ -417,7 +477,7 @@ eqn.pls <- paste("TARGET_WINS =", paste(coef.pls[1],paste(paste(signs.pls[2:leng
 
 ### 3.4 Random forest
 
-```{r}
+```{r, eval=F }
 set.seed(7)
 # load the library
 library(mlbench)
@@ -493,7 +553,7 @@ MoneyBallDataPrep <- function(Path) {
 ```
 
 
-```{r}
+```{r, eval=F}
 TestData <- MoneyBallDataPrep(Path = 'MoneyBall.csv')
 
 # Test of Simple model
@@ -565,13 +625,13 @@ ModelComparison <- data.frame(Type = c("Simple","Simple revised", "Stepwise", "P
 
 ### 5. Model Selection
 
-```{r}
+```{r, eval=F}
 pander::pandoc.table(ModelComparison)
 ```
 
 ## 6. Prediction
 
-```{r}
+```{r, eval=F}
 PredictionData <- read.csv(file = "MoneyBall_Test.csv")
 Processed.PredictData <- MoneyBallDataPrep("MoneyBall_Test.csv")
 P_TARGET_WINS <- round(predict(simple.rev.Fit,newdata = Processed.PredictData),0)
@@ -579,11 +639,11 @@ hist(P_TARGET_WINS)
 ```
 
 
-\appendix \begin {center} \section {APPENDIX} \end {center}
+<!-- \appendix \begin {center} \section {APPENDIX} \end {center} -->
 
-# A.1 Data dictionary
+<!-- # A.1 Data dictionary -->
 
-```{r}
+```{r, eval=F}
 dictionary <- readxl::read_xlsx('DataDictionary_Baseball.xlsx', sheet = 1)
 knitr::kable(dictionary)
 ```
