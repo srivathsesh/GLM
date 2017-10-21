@@ -1,0 +1,128 @@
+---
+title: "Gotchas in R's Logistic Regression output"
+author: "Sri Seshadri"
+date: "10/17/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=70),tidy=TRUE)
+library(magrittr)
+```
+
+# 1. Introduction
+
+This document illustrates the discrepancies in output of glm() for logistic regression in R. The output of Minitab (not shown here) is used as a reference.
+
+# 2. Data
+
+The data used is from page 427 of **"Introduction to Linear Regression"" 5th Edition by Montgomery and Vining**. Datasets used in the book are available at http://www.winzip.com/prod_down.htm. The R code to analyze the data is also provided in page 460 of the book. 
+
+The data used in the illustration is **Pneumoconiosis**. The dataset has long column names; for convenience the column names are shortened. 
+
+```{r readin}
+df <- readxl::read_xls(path = 'data-ex-13-1 (Pneumoconiosis).xls',sheet = 1,col_names = T)
+# rename columns for convenience
+colnames(df) <- c('Years','Cases','Miners','Proportion')
+# remove Proportion column
+df.cleaned <- df[,-4]
+
+```
+
+# 3. Logistic regression
+
+The _y_ piece of the  _"formula"_ argument in _glm()_ in R can be supplied in 2 ways for "binomial" family ...
+
+1. 2 column matrix - The first column denoting the number of successes and the second being the number of failures
+2. Variable of type _factor_
+
+We'll use both the methods and compare the results.
+
+## 3.1. Two (2) column matrix 
+
+The output of the 2 column matrix as response is supplied to glm(). The results for **eta** i.e. **$$X \beta $$** is identical to the one from Minitab shown in page 427 of Montogomery et.al. The Deviance and Likelyhood Ratio (LR) test output also matches with the book.
+
+```{r colMat}
+
+y <- cbind(df.cleaned$Cases , df.cleaned$Miners - df.cleaned$Cases)
+x <- df.cleaned$Years
+
+fit1 <- glm(y~x, family = binomial)
+summary.glm(fit1)
+anova(fit1)
+```
+
+### 3.1.1 Discrepancy
+
+However, the loglikelyhood result does not match the one in the book. The loglikelihood is -109.664 in the book and R reports it as `r logLik(fit1)`. The deviance is expected to be -2(log likelihood), which is  `r -2 * logLik(fit1)`. But the above software output shows deviance as `r deviance(fit1)`
+
+
+```{r}
+logLik(fit1)
+
+deviance(fit1)
+```
+
+We also know that the loglikelihood function for repeated observations is 
+
+**$$ln L(y,\beta) = \sum_{i=1}^n{y_iX'_i\beta} - \sum_{i=1}^n{n_iln[1 + exp(X'_i\beta)]}$$**
+
+
+$$ln L(y,\beta) = \sum_{i=1}^n{y_i ln(\pi_i)} + \sum_{i=1}^n{n_iln(1-\pi_i)]} - \sum_{i=1}^n{y_i ln(1-\pi_i)}$$
+$$ = \sum_{i=1}^n{y_i ln(\pi_i)} + \sum_{i=1}^n{(n_i -y_i) ln(1-\pi_i)}$$
+
+Where $y_i$  is  the number of success observed for the ith observation and $n_i$ is the number of trials at each observation. Lets compute the loglikelihood by hand below:
+
+```{r}
+loglikelihood <- sum(df.cleaned$Cases*(coef(fit1)[1] + coef(fit1)[2]*x)) - sum(df.cleaned$Miners*log(1 + exp(coef(fit1)[1] + coef(fit1)[2]*x)))
+
+print(loglikelihood)
+```
+
+it is seen that the hand calculation and logLik() output differs.
+
+**Is the discrepancy due to the logLik() not weighting by the $n_i$ ?**
+
+```{r}
+loglikelihood_test <- sum((coef(fit1)[1] + coef(fit1)[2]*x)) - sum(log(1 + exp(coef(fit1)[1] + coef(fit1)[2]*x)))
+
+print(loglikelihood_test)
+```
+
+The result above for a doctored likelihood hand calculation does not yield the same as logLik()
+
+**Therefore the logLik() function is not yielding the correct results.** Use this function with caution. 
+
+## 3.2. Dichotomous (factor) variable as response.
+
+Lets create a version of dataset that makes the response variables 0s (non severe cases) and 1s (severe cases), as below:
+
+```{r}
+df2 <- data.frame( y = as.factor(c(rep(1,8), rep(0,8))), years = rep(df.cleaned$Years,2), counts = c(df.cleaned$Cases,df.cleaned$Miners - df.cleaned$Cases ))
+
+knitr::kable(df2,caption = "Factor response")
+```
+
+Let's run the glm fit with weights as counts...
+
+```{r}
+fit2 <- glm(formula = y~years, family = binomial, weights = counts, data = df2)
+summary.glm(fit2)
+anova(fit2)
+```
+
+### 3.2.1 Discrepancy in fit statistics.
+
+Though the regression coefficients for $\eta$ (linear regression)is identical to that of in section 3.1. The fit statistics like Deviance and AIC are different. Now how does the logLik() output look like?
+
+```{r}
+logLik(fit2)
+deviance(fit2)
+```
+
+It is seen that the log likelihood function is reporting the correct and expected result per the hand calculation in section 3.1.1. 
+
+# 4. Conclusion
+
+When comparing fits that's based on differernt arrangements of the data, one must be careful in interpreting deviance and AIC statistics. However the Likelihood ratio tests (ggodness of fit) and the odds ratio remain unaffected.
+

@@ -1,0 +1,77 @@
+---
+title: "Auto Insurance prediction"
+author: "Sri Seshadri"
+date: "10/20/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+# 1. Introduction
+
+An insurance company is interested in predicting which customers are likely to be in an accident and what would be the likely payout. The  
+
+# 2. Data
+
+
+
+```{r Import}
+df <- read.csv('logit_insurance_rev.csv')
+library(mosaic)
+sanitycheck <- do.call(rbind,dfapply(df,favstats, select = is.numeric))
+knitr::kable(sanitycheck, caption = "Summary statistics")
+df.rev <- df %>% 
+            dplyr::mutate(YOJ_Missing = ifelse(is.na(YOJ),1,0)) %>% 
+            dplyr::mutate(Income_Missing = ifelse(is.na(INCOME),1,0)) %>% 
+            dplyr::mutate(HOME_Val_Missing = ifelse(is.na(HOME_VAL),1,0)) %>% 
+            dplyr::mutate(CAR_AGE_Missing = ifelse(is.na(CAR_AGE),1,0)) %>% 
+            dplyr::mutate(AGE_Missing = ifelse(is.na(AGE),1,0))
+
+# save file for external data analysis
+# write.table(df.rev,'insurancedata.csv')
+
+predictors <- colnames(df.rev)[which(colnames(df.rev) %in% c("INDEX", "TARGET_AMT"))*-1]
+df.rev.cleaned <- df.rev %>% 
+                    dplyr::select(c('TARGET_FLAG',predictors)) %>% 
+                    mutate(TARGET_FLAG2 = as.factor(ifelse(TARGET_FLAG, "Yes", "No")))
+#df.rev.cleaned.comp <- df.rev.cleaned[complete.cases(df.rev.cleaned), c(- 1,-7,-23:-27)]          
+```
+
+# 3. Feature Selection
+
+## 3.1 Training and Test data partition
+
+```{r}
+trainRows <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG2,p = 0.7, list = F)
+training <- df.rev.cleaned[trainRows,]
+test <- df.rev.cleaned[-trainRows,]
+```
+
+
+## 3.1. Decision Tree
+
+```{r}
+tr <- tree::tree(TARGET_FLAG2 ~. - TARGET_FLAG, data = training)
+summary(tr)
+cv.tr <- tree::cv.tree(tr,FUN = prune.misclass,K = 100)
+library(tree)
+plot(prune.misclass(tr,best = 5))
+text(prune.misclass(tr,best = 5),pretty = 0)
+
+tr2 <- rpart::rpart(TARGET_FLAG2 ~. - TARGET_FLAG, data = training,parms = list(split = 'gini'))
+summary(tr2)
+plot(tr2)
+text(tr2, use.n = TRUE)
+tr.boosted <- randomForest::randomForest(TARGET_FLAG2 ~ . - TARGET_FLAG, data = training,na.action=na.omit,mtry = 28)
+tr.boosted
+randomForest::varImpPlot(tr.boosted, cex = 0.7)
+
+library(pROC)
+test$predicted <- predict(tr.boosted,newdata = test)
+table(test$TARGET_FLAG2, test$predicted)
+
+
+```
+

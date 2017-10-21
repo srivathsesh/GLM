@@ -30,6 +30,11 @@ Version: 0.0.2
 Hash: cd79854854a03ad0c8979b36b414d2c0
 Requires: CVST, kernlab
 
+Package: ISLR
+Source: CRAN
+Version: 1.1
+Hash: ff32fffe069d5d2d216e021d8683276c
+
 Package: MatrixModels
 Source: CRAN
 Version: 0.4-1
@@ -141,6 +146,12 @@ Hash: f5b47c8d7244b7e157f75641b212392f
 Requires: ModelMetrics, foreach, ggplot2, plyr, recipes, reshape2,
     withr
 
+Package: cellranger
+Source: CRAN
+Version: 1.1.0
+Hash: 4e1ef4d099b0c5fd531a3938cf4624bd
+Requires: rematch, tibble
+
 Package: colorspace
 Source: CRAN
 Version: 1.3-2
@@ -201,6 +212,12 @@ Version: 0.10.1
 Hash: 54d95f4ec6d0300100413ed0127d89ae
 Requires: stringr
 
+Package: forcats
+Source: CRAN
+Version: 0.2.0
+Hash: e5a3b0b96a39f5581467b0c6366f7408
+Requires: magrittr, tibble
+
 Package: foreach
 Source: CRAN
 Version: 1.4.3
@@ -257,6 +274,12 @@ Source: CRAN
 Version: 0.2.0
 Hash: cd78381a9d3fea966ac39bd0daaf5554
 
+Package: haven
+Source: CRAN
+Version: 1.1.0
+Hash: d91bd77c2b46f513b36976866239bb62
+Requires: Rcpp, forcats, hms, readr, tibble
+
 Package: highr
 Source: CRAN
 Version: 0.6
@@ -273,6 +296,12 @@ Version: 0.3.6
 Hash: 5b070a04ef8df1953544873db1c5896e
 Requires: Rcpp, digest
 
+Package: httr
+Source: CRAN
+Version: 1.3.1
+Hash: 2d32e01e53d532c812052e27a1021441
+Requires: R6, curl, jsonlite, mime, openssl
+
 Package: iplots
 Source: CRAN
 Version: 1.1-7
@@ -283,7 +312,7 @@ Package: ipred
 Source: CRAN
 Version: 0.9-6
 Hash: 2fd946bce1622291262c12515d27e780
-Requires: prodlim
+Requires: prodlim, rpart
 
 Package: iterators
 Source: CRAN
@@ -294,6 +323,12 @@ Package: jsonlite
 Source: CRAN
 Version: 1.5
 Hash: 9c51936d8dd00b2f1d4fe9d10499694c
+
+Package: kableExtra
+Source: CRAN
+Version: 0.5.2
+Hash: f7ad7359b8ca3730b1fe05e001d4753d
+Requires: knitr, magrittr, readr, rmarkdown, rvest, stringr, xml2
 
 Package: kernlab
 Source: CRAN
@@ -373,10 +408,21 @@ Version: 1.2.4
 Hash: c0b06acb19de5b852d625f10ed40d0da
 Requires: Rcpp
 
+Package: mlbench
+Source: CRAN
+Version: 2.1-1
+Hash: 1630b5b4753eba4ba6cfd19bd7561b56
+
 Package: mnormt
 Source: CRAN
 Version: 1.5-5
 Hash: d0d5efbb1fb26d2dc5f9394c223084b5
+
+Package: modelr
+Source: CRAN
+Version: 0.1.1
+Hash: dc3b2de1720a22560510dccbdffe2c17
+Requires: broom, dplyr, lazyeval, magrittr, purrr, tibble, tidyr
 
 Package: mosaic
 Source: CRAN
@@ -412,6 +458,17 @@ Source: CRAN
 Version: 2016.8-1
 Hash: 3a9d0fc99ba2f6aaa500b3d584962be2
 
+Package: openssl
+Source: CRAN
+Version: 0.9.6
+Hash: 5f4711e142a44655dfea4d64fcf2f641
+
+Package: pROC
+Source: CRAN
+Version: 1.10.0
+Hash: 538c2f9710cb24d6a6193ea89444c859
+Requires: Rcpp, ggplot2, plyr
+
 Package: packrat
 Source: CRAN
 Version: 0.4.8-1
@@ -438,6 +495,11 @@ Package: plogr
 Source: CRAN
 Version: 0.1-1
 Hash: fb19215402e2d9f1c7f803dcaa806fc2
+
+Package: pls
+Source: CRAN
+Version: 2.6-0
+Hash: 7272baa2f6453b72fa148dc970fd8957
 
 Package: plyr
 Source: CRAN
@@ -479,11 +541,22 @@ Source: CRAN
 Version: 0.9-8
 Hash: 3e8627a2a5bd45c9bad6112acfc231d9
 
+Package: randomForest
+Source: CRAN
+Version: 4.6-12
+Hash: b37274857316c7b9431cc7f72aaffb77
+
 Package: readr
 Source: CRAN
 Version: 1.1.1
 Hash: c9044cbc275e63bf00dd3af329290fa9
 Requires: BH, R6, Rcpp, hms, tibble
+
+Package: readxl
+Source: CRAN
+Version: 1.0.0
+Hash: 83bc4a5b41d247b40ce7161ade89baf3
+Requires: Rcpp, cellranger, tibble
 
 Package: recipes
 Source: CRAN
@@ -491,6 +564,11 @@ Version: 0.1.0
 Hash: 2d9339a013535bde2b5fc1e87586f7f8
 Requires: RcppRoll, ddalpha, dimRed, dplyr, gower, ipred, lubridate,
     magrittr, purrr, rlang, tibble, tidyselect, timeDate
+
+Package: rematch
+Source: CRAN
+Version: 1.0.1
+Hash: ad4faf59e7611117ff165817074c50c7
 
 Package: reshape2
 Source: CRAN
@@ -516,11 +594,22 @@ Version: 0.92-7
 Hash: 8d57db5d29d2a4dddaac976d7054428d
 Requires: DEoptimR
 
+Package: rpart
+Source: CRAN
+Version: 4.1-11
+Hash: 3516bc1f3ef8bc532ac4194a2007ac19
+
 Package: rprojroot
 Source: CRAN
 Version: 1.2
 Hash: fdcac51a7f47decd60556ceefc3c26b1
 Requires: backports
+
+Package: rvest
+Source: CRAN
+Version: 0.3.2
+Hash: c69f7526520bad66fd2111ebe8b1364b
+Requires: httr, magrittr, selectr, xml2
 
 Package: scales
 Source: CRAN
@@ -528,6 +617,12 @@ Version: 0.5.0
 Hash: c108129462eb98e2699b07201fd12acf
 Requires: R6, RColorBrewer, Rcpp, dichromat, labeling, munsell, plyr,
     viridisLite
+
+Package: selectr
+Source: CRAN
+Version: 0.3-1
+Hash: 367275e3dcdd208339e131c7a41bec56
+Requires: stringr
 
 Package: sfsmisc
 Source: CRAN
@@ -550,6 +645,11 @@ Version: 1.2.0
 Hash: 25a86d7f410513ebb7c0bc6a5e16bdc3
 Requires: magrittr, stringi
 
+Package: survey
+Source: CRAN
+Version: 3.32-1
+Hash: e0d6920f9e5b04015ca679f6621e6416
+
 Package: tibble
 Source: CRAN
 Version: 1.3.4
@@ -569,10 +669,23 @@ Version: 0.2.0
 Hash: f6ef011a82d0718e198d30639ea42044
 Requires: Rcpp, glue, purrr, rlang
 
+Package: tidyverse
+Source: CRAN
+Version: 1.1.1
+Hash: 72d5fada870c90b835bbdfc281283c99
+Requires: broom, dplyr, forcats, ggplot2, haven, hms, httr, jsonlite,
+    lubridate, magrittr, modelr, purrr, readr, readxl, rvest, stringr,
+    tibble, tidyr, xml2
+
 Package: timeDate
 Source: CRAN
 Version: 3012.100
 Hash: 78876c125c98033cd093fa0283469637
+
+Package: tree
+Source: CRAN
+Version: 1.0-37
+Hash: cadc8c708e9e07f81647c53d5245d081
 
 Package: vcd
 Source: CRAN
@@ -589,6 +702,12 @@ Package: withr
 Source: CRAN
 Version: 2.0.0
 Hash: cc7e555b8e249aa5cf391592fcae71a2
+
+Package: xml2
+Source: CRAN
+Version: 1.1.1
+Hash: b326a762ddb04eef605cc88987fa71fb
+Requires: BH, Rcpp
 
 Package: yaml
 Source: CRAN
