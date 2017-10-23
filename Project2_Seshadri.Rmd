@@ -6,72 +6,171 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
 ```
 
 # 1. Introduction
 
-An insurance company is interested in predicting which customers are likely to be in an accident and what would be the likely payout. The  
+An insurance company is interested in predicting which customers are likely to be in an accident and what would be the likely payout. The company requires this prediction to price the insurance policy. A predictive model is required to be deployed at point of request for quote or sale. The insurance company has been collecting data on which a predictive model would be trained and tested. 
+
+## 1.1 Analysis Process
+
+The following process steps were used for building a predicitve models:
+
+* Exploratory Data Analysis
+    + Perform data quality checks, quantify missing data.
+      - Check for systemic loss in data
+    + Understand relationships amongst predictors and between target variables and predictors.
+      - Create attribure or indicator variables to aid data cleaning.
+      - Filter out clean data for feature selection and model building.
+* Feature Selection
+    + Subset complete records to model wins in season
+      - Use different modeling techniques to select candidate predictors.
+      - If data is missing for candidate predictors, identify imputing methods.
+* Model Building
+    + Test models that were build using complete records on the entire data set with imputed data.
+    + Compare models based on Deviance, ROC and MAE
+      - Check if models make physical sense. 
+* Initial model deployment
+    + Deploy model to predict wins on out of sample data.
+    + Discuss models and results with subject matter experts.
+    + Fine tune model and re-test
+* Final model deployment
+  
+    
+## 1.2 Executive summary
+
 
 # 2. Data
 
+The insurance comnpany has data collected from almost 8200 customers. The dictionary of the data is provided in the appendix A.1. Tables 1 and 2 show the summary statistics of numeric and non-numeric features of the data. It is seen that some features have missing values. The missing values may need to be imputed if the features are deemed important predictors of likelihood of customer involving in a crash or payout. 
 
+It is seen that the minimum age of car is -3. Which is not rational, the data is filled in with +3 assuming it is a typographical error. Also it is seen that there is white space in the JOB column of the data. 
 
 ```{r Import}
+# import data
 df <- read.csv('logit_insurance_rev.csv')
+
+# Sanity Check of numeric variables
 library(mosaic)
 sanitycheck <- do.call(rbind,dfapply(df,favstats, select = is.numeric))
-knitr::kable(sanitycheck, caption = "Summary statistics")
+knitr::kable(round(sanitycheck,2), caption = "Summary statistics")
+
+# Sanoty check on non-numeric variables
+sanitycheckcharacter <-select(df, colnames(df.rev[1,sapply(df.rev,class) == 'factor']))
+library(purrr)
+UniqueVals <- sanitycheckcharacter %>% 
+  map(unique)
+
+Counts <- data.frame(sapply(UniqueVals,length),
+                     do.call(rbind,dfapply(df,length,select = is.factor)),do.call(rbind,dfapply(sanitycheckcharacter,n_missing,select = is.factor)),do.call(rbind,dfapply(sanitycheckcharacter,function(x)length(x[which(x == " ")]))),
+                     row.names = names(UniqueVals))
+colnames(Counts) <- c( "# Unique", "n","missing","Blanks")
+knitr::kable(Counts, caption = 'Sanity check of non numeric variables')
+
+# Creating attribute columns for missing variables
 df.rev <- df %>% 
             dplyr::mutate(YOJ_Missing = ifelse(is.na(YOJ),1,0)) %>% 
             dplyr::mutate(Income_Missing = ifelse(is.na(INCOME),1,0)) %>% 
             dplyr::mutate(HOME_Val_Missing = ifelse(is.na(HOME_VAL),1,0)) %>% 
             dplyr::mutate(CAR_AGE_Missing = ifelse(is.na(CAR_AGE),1,0)) %>% 
-            dplyr::mutate(AGE_Missing = ifelse(is.na(AGE),1,0))
+            dplyr::mutate(AGE_Missing = ifelse(is.na(AGE),1,0)) %>% 
+            dplyr::mutate(CAR_AGE = ifelse(!is.na(CAR_AGE) & CAR_AGE <0, abs(CAR_AGE), CAR_AGE))
 
 # save file for external data analysis
 # write.table(df.rev,'insurancedata.csv')
 
+# Defining predictors
 predictors <- colnames(df.rev)[which(colnames(df.rev) %in% c("INDEX", "TARGET_AMT"))*-1]
 df.rev.cleaned <- df.rev %>% 
                     dplyr::select(c('TARGET_FLAG',predictors)) %>% 
                     mutate(TARGET_FLAG2 = as.factor(ifelse(TARGET_FLAG, "Yes", "No")))
+
+
+
+
 #df.rev.cleaned.comp <- df.rev.cleaned[complete.cases(df.rev.cleaned), c(- 1,-7,-23:-27)]          
 ```
+## 2.1 Exploratory Data Analysis (EDA)
+
+```{r}
+library(forcats)
+library(ggplot2)
+ggplot(data = training[!is.na(training$INCOME),], mapping = aes(x = fct_reorder(JOB,INCOME), y = INCOME,color = JOB)) + geom_boxplot() + coord_flip() + theme_bw() + xlab("JOB") + geom_vline(xintercept = 4.5,linetype = "dashed", color = "red")
+
+df.rev.cleaned <- df.rev.cleaned %>% dplyr::mutate(JOB.category = ifelse(JOB %in% c("Student", "Home Maker", "Clerical", "z_Blue_Collar"),0,1))
+
+cordata <- 
+
+```
+
+
 
 # 3. Feature Selection
 
+In this section we consider various feature selection methodologies such as 1. Decision Trees, 2. Peanalized model - Lasso, 3. 
 ## 3.1 Training and Test data partition
 
+In order to test if the feature selection are really useful, feature selections need to be cross validated on a hold out test data set. 80% of the data is used as training and the rest is used as hold out for testing.
+ 
+
 ```{r}
-trainRows <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG2,p = 0.7, list = F)
+set.seed(10)
+trainRows <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG2,p = 0.8, list = F)
 training <- df.rev.cleaned[trainRows,]
 test <- df.rev.cleaned[-trainRows,]
 ```
 
 
-## 3.1. Decision Tree
+## 3.2 Decision Tree
 
 ```{r}
-tr <- tree::tree(TARGET_FLAG2 ~. - TARGET_FLAG, data = training)
-summary(tr)
-cv.tr <- tree::cv.tree(tr,FUN = prune.misclass,K = 100)
-library(tree)
-plot(prune.misclass(tr,best = 5))
-text(prune.misclass(tr,best = 5),pretty = 0)
+# tr <- tree::tree(TARGET_FLAG2 ~. - TARGET_FLAG, data = training)
+# summary(tr)
+# cv.tr <- cv.tree(tr,FUN = prune.misclass,K = 100)
+# library(tree)
+# plot(prune.misclass(cv.tr,best = 5))
+# text(prune.misclass(cv.tr,best = 5),pretty = 0)
 
 tr2 <- rpart::rpart(TARGET_FLAG2 ~. - TARGET_FLAG, data = training,parms = list(split = 'gini'))
 summary(tr2)
 plot(tr2)
-text(tr2, use.n = TRUE)
+text(tr2, use.n = TRUE,cex = 0.5,pretty = 0)
 tr.boosted <- randomForest::randomForest(TARGET_FLAG2 ~ . - TARGET_FLAG, data = training,na.action=na.omit,mtry = 28)
 tr.boosted
 randomForest::varImpPlot(tr.boosted, cex = 0.7)
 
 library(pROC)
 test$predicted <- predict(tr.boosted,newdata = test)
-table(test$TARGET_FLAG2, test$predicted)
+test$predicted <- ifelse(test$predicted == "Yes", 1,0)
+test$TARGET_FLAG2 <- ifelse(test$TARGET_FLAG2 == "Yes",1,0)
+rocCurve <- roc(response = test$TARGET_FLAG2, predictor = test$predicted)
+plot(rocCurve, legacy.axes = T,xlim = c(1,0), ylim = c(0,1))
+```
 
+```{r}
 
+summary(training)
+PotentialPred <- rownames(tr.boosted$importance)[order(tr.boosted$importance,decreasing = T)][1:10]
+df.rev.imputed <- VIM::kNN(df.rev.cleaned)
+
+#
+
+trainRows.models <- caret::createDataPartition(df.rev.imputed$TARGET_FLAG2,p = 0.8, list = F)
+training.models <- df.rev.imputed[trainRows.models,]
+test.models <- df.rev.imputed[-trainRows.models,]
+y <- ifelse(training.models$TARGET_FLAG2 == "No",0,1)
+x <- as.matrix(training.models[ ,c(PotentialPred[c(-5,-7,-8)])])
+dffit <- data.frame(y,x)
+fit1 <- glm(y~.,family = binomial,data = dffit)
+
+summary(fit1)
+x.test <- test.models[ ,c(PotentialPred[c(-5,-7,-8)])]
+predictedClass <- ifelse(predict.glm(fit1,newdata = x.test, type = 'response') > 0.5, 1,0)
+test.y <- ifelse(test.models$TARGET_FLAG2 == "No",0,1)
+table(predictedClass,test.y)
+rocCurve.fit1 <- roc(response = test.y, predictor = predictedClass)
+plot(rocCurve.fit1, legacy.axes = T)
+pROC::auc(rocCurve.fit1)
 ```
 
