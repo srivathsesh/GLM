@@ -57,7 +57,7 @@ sanitycheck <- do.call(rbind,dfapply(df,favstats, select = is.numeric))
 knitr::kable(round(sanitycheck,2), caption = "Summary statistics")
 
 # Sanoty check on non-numeric variables
-sanitycheckcharacter <-select(df, colnames(df.rev[1,sapply(df.rev,class) == 'factor']))
+sanitycheckcharacter <-select(df, colnames(df[1,sapply(df,class) == 'factor']))
 library(purrr)
 UniqueVals <- sanitycheckcharacter %>% 
   map(unique)
@@ -80,15 +80,16 @@ df.rev <- df %>%
 # save file for external data analysis
 # write.table(df.rev,'insurancedata.csv')
 
-# Defining predictors
+# Defining predictors and temporarily removing Target amount from the data
 predictors <- colnames(df.rev)[which(colnames(df.rev) %in% c("INDEX", "TARGET_AMT"))*-1]
 df.rev.cleaned <- df.rev %>% 
-                    dplyr::select(c('TARGET_FLAG',predictors)) %>% 
-                    mutate(TARGET_FLAG2 = as.factor(ifelse(TARGET_FLAG, "Yes", "No")))
+                    dplyr::select(c('TARGET_FLAG',predictors)) 
+write.csv(df.rev.cleaned, file = 'dfrevcleaned.csv')
+# creating indicator variables for factor variables
 
-
-
-
+factorcols <- sapply(df.rev.cleaned,is.factor)
+dummyvars <- dummy::dummy(df.rev.cleaned[,factorcols],int = T)
+df.rev.cleaned <- cbind(df.rev.cleaned,dummyvars)
 #df.rev.cleaned.comp <- df.rev.cleaned[complete.cases(df.rev.cleaned), c(- 1,-7,-23:-27)]          
 ```
 ## 2.1 Exploratory Data Analysis (EDA)
@@ -96,12 +97,15 @@ df.rev.cleaned <- df.rev %>%
 ```{r}
 library(forcats)
 library(ggplot2)
-ggplot(data = training[!is.na(training$INCOME),], mapping = aes(x = fct_reorder(JOB,INCOME), y = INCOME,color = JOB)) + geom_boxplot() + coord_flip() + theme_bw() + xlab("JOB") + geom_vline(xintercept = 4.5,linetype = "dashed", color = "red")
+ggplot(data = df.rev.cleaned[!is.na(df.rev.cleaned$INCOME),], mapping = aes(x = fct_reorder(JOB,INCOME), y = INCOME,color = JOB)) + geom_boxplot() + coord_flip() + theme_bw() + xlab("JOB") + geom_vline(xintercept = 4.5,linetype = "dashed", color = "red") + theme(legend.position = "none")
 
 df.rev.cleaned <- df.rev.cleaned %>% dplyr::mutate(JOB.category = ifelse(JOB %in% c("Student", "Home Maker", "Clerical", "z_Blue_Collar"),0,1))
 
-cordata <- 
 
+corcols <- sapply(df.rev.cleaned,is.numeric)
+corcols[grep("_Missing",colnames(df.rev.cleaned))] <- F
+cordata <- cor(df.rev.cleaned[complete.cases(df.rev.cleaned), corcols])
+corrplot::corrplot(cordata,tl.cex = 0.6)
 ```
 
 
@@ -116,6 +120,7 @@ In order to test if the feature selection are really useful, feature selections 
 
 ```{r}
 set.seed(10)
+df.rev.cleaned$TARGET_FLAG2 <- ifelse(df.rev.cleaned$TARGET_FLAG==1,"Yes", "No")
 trainRows <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG2,p = 0.8, list = F)
 training <- df.rev.cleaned[trainRows,]
 test <- df.rev.cleaned[-trainRows,]
@@ -132,45 +137,73 @@ test <- df.rev.cleaned[-trainRows,]
 # plot(prune.misclass(cv.tr,best = 5))
 # text(prune.misclass(cv.tr,best = 5),pretty = 0)
 
-tr2 <- rpart::rpart(TARGET_FLAG2 ~. - TARGET_FLAG, data = training,parms = list(split = 'gini'))
+tr2 <- rpart::rpart(TARGET_FLAG2 ~. - TARGET_FLAG, data = training,parms = list(split = 'AUC'))
 summary(tr2)
 plot(tr2)
 text(tr2, use.n = TRUE,cex = 0.5,pretty = 0)
-tr.boosted <- randomForest::randomForest(TARGET_FLAG2 ~ . - TARGET_FLAG, data = training,na.action=na.omit,mtry = 28)
+tr.boosted <- randomForest::randomForest(as.factor(TARGET_FLAG2) ~ . - TARGET_FLAG, data = training,na.action=na.omit,mtry = 28)
 tr.boosted
 randomForest::varImpPlot(tr.boosted, cex = 0.7)
 
 library(pROC)
-test$predicted <- predict(tr.boosted,newdata = test)
+test$predicted.class <- predict(tr.boosted,newdata = test,type = 'response')
+test$predicted.prob <- predict(tr.boosted,newdata = test,type = 'prob')[,"Yes"]
 test$predicted <- ifelse(test$predicted == "Yes", 1,0)
 test$TARGET_FLAG2 <- ifelse(test$TARGET_FLAG2 == "Yes",1,0)
-rocCurve <- roc(response = test$TARGET_FLAG2, predictor = test$predicted)
+rocCurve <- roc(response = test$TARGET_FLAG , predictor = test$predicted.prob)
 plot(rocCurve, legacy.axes = T,xlim = c(1,0), ylim = c(0,1))
+pROC::auc(rocCurve)
 ```
 
 ```{r}
 
 summary(training)
-PotentialPred <- rownames(tr.boosted$importance)[order(tr.boosted$importance,decreasing = T)][1:10]
-df.rev.imputed <- VIM::kNN(df.rev.cleaned)
+PotentialPred <- rownames(tr.boosted$importance)[order(tr.boosted$importance,decreasing = T)][1:12]
+#df.rev.imputed <- VIM::kNN(df.rev.cleaned)
 
 #
 
-trainRows.models <- caret::createDataPartition(df.rev.imputed$TARGET_FLAG2,p = 0.8, list = F)
-training.models <- df.rev.imputed[trainRows.models,]
-test.models <- df.rev.imputed[-trainRows.models,]
+trainRows.models <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG2,p = 0.75, list = F)
+training.models <- df.rev.cleaned[trainRows.models,]
+test.models <- df.rev.cleaned[-trainRows.models,]
 y <- ifelse(training.models$TARGET_FLAG2 == "No",0,1)
-x <- as.matrix(training.models[ ,c(PotentialPred[c(-5,-7,-8)])])
+x <- as.matrix(training.models[ ,c(PotentialPred[-7],colnames(training.models) [grep("JOB_", colnames(training.models))])])
 dffit <- data.frame(y,x)
-fit1 <- glm(y~.,family = binomial,data = dffit)
+fit1 <- glm(y~.,family = binomial,data = dffit[complete.cases(dffit),])
 
 summary(fit1)
-x.test <- test.models[ ,c(PotentialPred[c(-5,-7,-8)])]
-predictedClass <- ifelse(predict.glm(fit1,newdata = x.test, type = 'response') > 0.5, 1,0)
+rocCurve.fit1.train <- roc(response = dffit[complete.cases(dffit),"y"], predictor = fit1$fitted.values)
+plot(rocCurve.fit1.train)
+auc(rocCurve.fit1.train)
+
+x.test <- test.models[ ,c(PotentialPred[-7],colnames(training.models) [grep("JOB_", colnames(training.models))])]
+predictedClass <- ifelse(predict.glm(fit1,newdata = x.test, type = 'response') >= 0.5, 1,0)
+p
 test.y <- ifelse(test.models$TARGET_FLAG2 == "No",0,1)
 table(predictedClass,test.y)
-rocCurve.fit1 <- roc(response = test.y, predictor = predictedClass)
+rocCurve.fit1 <- roc(response = test.y, predictor = predict.glm(fit1,newdata = x.test, type = 'response'))
 plot(rocCurve.fit1, legacy.axes = T)
 pROC::auc(rocCurve.fit1)
+```
+
+```{r}
+x2 <- as.matrix(training.models[,c("AGE","INCOME","TRAVTIME","BLUEBOOK","OLDCLAIM","CLM_FREQ","MVR_PTS")])
+x2.test <- test.models[,c("AGE","INCOME","TRAVTIME","BLUEBOOK","OLDCLAIM","CLM_FREQ","MVR_PTS")]
+dfit2 <- data.frame(y,x2)
+# write to file to check with JMP
+write.csv(dfit2, file = "dfit2.csv")
+fit2 <- glm(y~.,family = binomial,data = dfit2)
+
+rocCurve.fit2 <- roc(response = dfit2[complete.cases(dfit2),'y'], predictor = fit2$fitted.values)
+plot(rocCurve.fit2)
+auc(rocCurve.fit2)
+summary(fit2)
+
+rocCurve.fit2.train <- roc(response = dfit2[complete.cases(dfit2),'y'], predictor = predictedClass2.train)
+plot(rocCurve.fit2.train)
+tab <- table(predictedClass2,test.models$TARGET_FLAG)
+(nrow(x2.test) - sum(diag(tab))) / nrow(x2.test)
+plot(rocCurve.fit2, legacy.axes = T)
+pROC::auc(rocCurve.fit2)
 ```
 
