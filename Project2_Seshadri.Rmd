@@ -112,7 +112,8 @@ corrplot::corrplot(cordata,tl.cex = 0.6)
 
 # 3. Feature Selection
 
-In this section we consider various feature selection methodologies such as 1. Decision Trees, 2. Peanalized model - Lasso, 3. 
+In this section we consider various feature selection methodologies such as 1. Decision Trees, 2. Peanalized model - Lasso 
+
 ## 3.1 Training and Test data partition
 
 In order to test if the feature selection are really useful, feature selections need to be cross validated on a hold out test data set. 80% of the data is used as training and the rest is used as hold out for testing.
@@ -129,7 +130,9 @@ test <- df.rev.cleaned[-trainRows,]
 
 ## 3.2 Decision Tree
 
-```{r}
+Decision tree model is fitted on the training set to identify stand out splits in the data based on Gini index. The decision tree is shown in figure 3. Bagging technique is used to minimize variance in the model to ensure we have a reliable feature selection. The important features are shown in figure 4.
+
+```{r, fig.cap= "Decision Tree"}
 # tr <- tree::tree(TARGET_FLAG2 ~. - TARGET_FLAG, data = training)
 # summary(tr)
 # cv.tr <- cv.tree(tr,FUN = prune.misclass,K = 100)
@@ -137,28 +140,79 @@ test <- df.rev.cleaned[-trainRows,]
 # plot(prune.misclass(cv.tr,best = 5))
 # text(prune.misclass(cv.tr,best = 5),pretty = 0)
 
-tr2 <- rpart::rpart(TARGET_FLAG2 ~. - TARGET_FLAG, data = training,parms = list(split = 'AUC'))
-summary(tr2)
+tr2 <- rpart::rpart(TARGET_FLAG2 ~. - TARGET_FLAG, data = training,parms = list(split = 'Gini'))
+#summary(tr2)
 plot(tr2)
 text(tr2, use.n = TRUE,cex = 0.5,pretty = 0)
-tr.boosted <- randomForest::randomForest(as.factor(TARGET_FLAG2) ~ . - TARGET_FLAG, data = training,na.action=na.omit,mtry = 28)
-tr.boosted
-randomForest::varImpPlot(tr.boosted, cex = 0.7)
+
+```
+
+
+```{r, fig.cap="Variable Importance Plot and test prediction"}
+tr.bagged <- randomForest::randomForest(as.factor(TARGET_FLAG2) ~ . - TARGET_FLAG, data = training,na.action=na.omit,mtry = 28)
+tr.bagged
+randomForest::varImpPlot(tr.bagged, cex = 0.7, main = "Variable Importance")
+abline(v=60, col= 'red',lty = 2)
 
 library(pROC)
-test$predicted.class <- predict(tr.boosted,newdata = test,type = 'response')
-test$predicted.prob <- predict(tr.boosted,newdata = test,type = 'prob')[,"Yes"]
-test$predicted <- ifelse(test$predicted == "Yes", 1,0)
-test$TARGET_FLAG2 <- ifelse(test$TARGET_FLAG2 == "Yes",1,0)
-rocCurve <- roc(response = test$TARGET_FLAG , predictor = test$predicted.prob)
-plot(rocCurve, legacy.axes = T,xlim = c(1,0), ylim = c(0,1))
-pROC::auc(rocCurve)
+training$predicted.class <- predict(tr.bagged, newdata = training,type = 'response')
+training$predicted.prob <- predict(tr.bagged, newdata = training, type = 'prob') [,"Yes"]
+rocCurve.training <- roc(response = training$TARGET_FLAG, predictor = training$predicted.prob)
+test$predicted.class <- predict(tr.bagged,newdata = test,type = 'response')
+test$predicted.prob <- predict(tr.bagged,newdata = test,type = 'prob')[,"Yes"]
+#test$predicted <- ifelse(test$predicted == "Yes", 1,0)
+#test$TARGET_FLAG2 <- ifelse(test$TARGET_FLAG2 == "Yes",1,0)
+rocCurve.test <- roc(response = test$TARGET_FLAG , predictor = test$predicted.prob)
+
 ```
+The decision tree was used to predict the hold out test data and the AUC was found to be `r paste(round(pROC::auc(rocCurve.test),2)*100,"%")` as shown in figure 5. Therefore we'll use the top 13 predictors as shown in figure 4. In the next section we will explore penalized models to gather important predictors.
+
+```{r, fig.cap="Prediction of bagged decision tree" }
+
+plot(rocCurve.test, legacy.axes = T,asp = NA, col = 'red', main = "ROC of hold out test set")
+text(0.2,0.8,paste("AUC.test:",round(pROC::auc(rocCurve.test),2)),col = 'blue')
+# plot(rocCurve.training, legacy.axes = T, asp = NA, add = T)
+# text(0.2,0.7,paste("AUC.train:",round(pROC::auc(rocCurve.training),2)))
+
+```
+
+## 3.3 Penalized model - Lasso
+
+
+
+```{r}
+library(glmnet)
+train.factorcols <- sapply(training,is.factor)
+traincols <- colnames(training)[!train.factorcols]
+traincols <- traincols[which(traincols %in% c("TARGET_FLAG2", "predicted.prob"))*-1]
+training.glmnet <- training[complete.cases(training),traincols]
+test.glmnet <- test[complete.cases(test),traincols]
+
+glmnet.x <- model.matrix(TARGET_FLAG ~. , data = training.glmnet)[,-1]
+glmnet.y <- as.matrix(training.glmnet$TARGET_FLAG)
+
+# cross validation to choose lambda
+gplmnet.model <- cv.glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'binomial',lambda = 10^seq(10,-2,length = 100))
+glmnet.model <- glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'binomial',lambda = gplmnet.model$lambda.min)
+
+# feature selection
+colidx <- predict(glmnet.model,  type = "coefficients", s = gplmnet.model$lambda.min)
+features <- data.frame(features = rownames(colidx), coefs = colidx[1:length(colidx)]) %>% mutate(abscoef = abs(coefs))
+ggplot(data = features, mapping = aes(y = abscoef, x = fct_reorder(features,abscoef))) + geom_point() + coord_flip() + theme_bw() + theme(axis.text.y = element_text(size = 6)) + geom_vline(xintercept = 44.5,linetype = "dashed", color = "red") + theme(legend.position = "none") + xlab("Features") + ylab("Absolute Coefficients")
+
+glmnet.x.test <- model.matrix(TARGET_FLAG ~. , data = test.glmnet)[,-1]
+glmnet.y.test= test.glmnet$TARGET_FLAG
+glmnet.test <- predict(glmnet.model, newx = glmnet.x.test, response = 'prob')
+rocCurve.lasso.train <- roc(response = glmnet.y.test[!is.na(glmnet.y.test)], predictor = glmnet.test)
+plot(rocCurve.lasso.train,asp = NA,legacy.axes = T, col = 'red')
+text(0.2,0.7,paste("AUC:", round(pROC::auc(rocCurve.lasso),2)),col = 'blue')
+```
+
 
 ```{r}
 
 summary(training)
-PotentialPred <- rownames(tr.boosted$importance)[order(tr.boosted$importance,decreasing = T)][1:12]
+PotentialPred <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12]
 #df.rev.imputed <- VIM::kNN(df.rev.cleaned)
 
 #
@@ -173,12 +227,12 @@ fit1 <- glm(y~.,family = binomial,data = dffit[complete.cases(dffit),])
 
 summary(fit1)
 rocCurve.fit1.train <- roc(response = dffit[complete.cases(dffit),"y"], predictor = fit1$fitted.values)
-plot(rocCurve.fit1.train)
-auc(rocCurve.fit1.train)
+plot(rocCurve.fit1.train,legacy.axes = T, asp = NA)
+pROC::auc(rocCurve.fit1.train)
 
 x.test <- test.models[ ,c(PotentialPred[-7],colnames(training.models) [grep("JOB_", colnames(training.models))])]
 predictedClass <- ifelse(predict.glm(fit1,newdata = x.test, type = 'response') >= 0.5, 1,0)
-p
+
 test.y <- ifelse(test.models$TARGET_FLAG2 == "No",0,1)
 table(predictedClass,test.y)
 rocCurve.fit1 <- roc(response = test.y, predictor = predict.glm(fit1,newdata = x.test, type = 'response'))
