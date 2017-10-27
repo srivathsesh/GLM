@@ -92,7 +92,9 @@ dummyvars <- dummy::dummy(df.rev.cleaned[,factorcols],int = T)
 df.rev.cleaned <- cbind(df.rev.cleaned,dummyvars)
 #df.rev.cleaned.comp <- df.rev.cleaned[complete.cases(df.rev.cleaned), c(- 1,-7,-23:-27)]          
 ```
+
 ## 2.1 Exploratory Data Analysis (EDA)
+
 
 ```{r}
 library(forcats)
@@ -178,9 +180,9 @@ text(0.2,0.8,paste("AUC.test:",round(pROC::auc(rocCurve.test),2)),col = 'blue')
 
 ## 3.3 Penalized model - Lasso
 
+The variableselection property of Lasso is used to aid with automated variable selection. Again the model is trained on training data set and tested on a hold out dataset, as in the decision tree method. However a 10 fold cross validation method was used to identify the optimal penalization parameter - lambda. The below plot shows the coefficients that are not zero in the decreasing order of absolute value of coefficients.
 
-
-```{r}
+```{r, fig.cap="Feature selection - Lasso"}
 library(glmnet)
 train.factorcols <- sapply(training,is.factor)
 traincols <- colnames(training)[!train.factorcols]
@@ -192,26 +194,57 @@ glmnet.x <- model.matrix(TARGET_FLAG ~. , data = training.glmnet)[,-1]
 glmnet.y <- as.matrix(training.glmnet$TARGET_FLAG)
 
 # cross validation to choose lambda
-gplmnet.model <- cv.glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'binomial',lambda = 10^seq(10,-2,length = 100))
-glmnet.model <- glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'binomial',lambda = gplmnet.model$lambda.min)
+gplmnet.model <- cv.glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'binomial',lambda = 10^seq(10,-2,length = 100),alpha = 1)
+glmnet.model <- glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'binomial',lambda = gplmnet.model$lambda.min,alpha = 1)
+
 
 # feature selection
 colidx <- predict(glmnet.model,  type = "coefficients", s = gplmnet.model$lambda.min)
 features <- data.frame(features = rownames(colidx), coefs = colidx[1:length(colidx)]) %>% mutate(abscoef = abs(coefs))
 ggplot(data = features, mapping = aes(y = abscoef, x = fct_reorder(features,abscoef))) + geom_point() + coord_flip() + theme_bw() + theme(axis.text.y = element_text(size = 6)) + geom_vline(xintercept = 44.5,linetype = "dashed", color = "red") + theme(legend.position = "none") + xlab("Features") + ylab("Absolute Coefficients")
+```
+## 3.3.1 Logistic regression as penalized models - Lasso
 
+While the peanalized regression model is used for feature selection, it may be used for prediction as well. The predictive power was tuned by choosing that proabbaility threshold that maximizes True Positive Rate (TPR) and minimizes False Positive Rate (FPR). The ROC curves for the training and test samples are shown below.
+
+```{r, fig.cap='Lasso ROC curves for test and training data'}
 glmnet.x.test <- model.matrix(TARGET_FLAG ~. , data = test.glmnet)[,-1]
 glmnet.y.test= test.glmnet$TARGET_FLAG
-glmnet.test <- predict(glmnet.model, newx = glmnet.x.test, response = 'prob')
-rocCurve.lasso.train <- roc(response = glmnet.y.test[!is.na(glmnet.y.test)], predictor = glmnet.test)
-plot(rocCurve.lasso.train,asp = NA,legacy.axes = T, col = 'red')
-text(0.2,0.7,paste("AUC:", round(pROC::auc(rocCurve.lasso),2)),col = 'blue')
+glmnet.test <- predict(glmnet.model, newx = glmnet.x.test, family = 'binomial',type = 'response')
+rocCurve.lasso.test <- roc(response = glmnet.y.test[!is.na(glmnet.y.test)], predictor = glmnet.test)
+
+
+# ROC Curves for Train and Test samples
+train.prob <- predict(glmnet.model,type = "response",s = gplmnet.model$lambda.min,newx = glmnet.x)
+train.class <- ifelse(train.prob >= 0.5, 1, 0)
+rocCurve.lasso.train <- roc(response = glmnet.y, predictor = predict(glmnet.model,type = "response",s = gplmnet.model$lambda.min,newx = glmnet.x))
+
+
+plot(rocCurve.lasso.test,asp = NA,legacy.axes = T, col = 'red')
+text(0.2,0.7,paste("Test AUC:", round(pROC::auc(rocCurve.lasso.test),2)),col = 'red')
+plot(rocCurve.lasso.train,asp = NA,legacy.axes = T, col = 'blue',add = T)
+text(0.2,0.6,paste("Train AUC:", round(pROC::auc(rocCurve.lasso.train),2)),col = 'blue')
+
+# Get optimal cutoff from training 
+lassostats <- data.frame(Threshold = rocCurve.lasso.train$thresholds, TPR = rocCurve.lasso.train$sensitivities , FPR = 1 - rocCurve.lasso.train$specificities)
+optimalThd <- lassostats %>% dplyr::arrange(desc(TPR), FPR) %>% filter(FPR < 0.2) %>% head(1)
+
+# Confusion matrix train and test
+predict.test.class <- ifelse(glmnet.test >= optimalThd[,1] ,1, 0)
+confusionMatrix.test <- table(glmnet.y.test,predict.test.class)
+miss.class.test <- 1 - sum(diag(confusionMatrix.test))/sum(confusionMatrix.test)
+knitr::kable(confusionMatrix.test)
+
+predict.train.class <- ifelse(train.prob >= optimalThd[,1] ,1, 0)
+confusionMatrix.train <- table(glmnet.y,predict.train.class)
+miss.class <- 1 - sum(diag(confusionMatrix.train))/sum(confusionMatrix.train)
+
 ```
 
 
 ```{r}
 
-summary(training)
+
 PotentialPred <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12]
 #df.rev.imputed <- VIM::kNN(df.rev.cleaned)
 
@@ -240,7 +273,7 @@ plot(rocCurve.fit1, legacy.axes = T)
 pROC::auc(rocCurve.fit1)
 ```
 
-```{r}
+```{r, eval=FALSE, include=FALSE}
 x2 <- as.matrix(training.models[,c("AGE","INCOME","TRAVTIME","BLUEBOOK","OLDCLAIM","CLM_FREQ","MVR_PTS")])
 x2.test <- test.models[,c("AGE","INCOME","TRAVTIME","BLUEBOOK","OLDCLAIM","CLM_FREQ","MVR_PTS")]
 dfit2 <- data.frame(y,x2)
@@ -249,8 +282,8 @@ write.csv(dfit2, file = "dfit2.csv")
 fit2 <- glm(y~.,family = binomial,data = dfit2)
 
 rocCurve.fit2 <- roc(response = dfit2[complete.cases(dfit2),'y'], predictor = fit2$fitted.values)
-plot(rocCurve.fit2)
-auc(rocCurve.fit2)
+plot(rocCurve.fit2,asp = NA)
+pROC::auc(rocCurve.fit2)
 summary(fit2)
 
 rocCurve.fit2.train <- roc(response = dfit2[complete.cases(dfit2),'y'], predictor = predictedClass2.train)
