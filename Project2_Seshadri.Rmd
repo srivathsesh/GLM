@@ -2,12 +2,17 @@
 title: "Auto Insurance prediction"
 author: "Sri Seshadri"
 date: "10/20/2017"
-output: pdf_document
+output: 
+  pdf_document:
+    toc : true
+    toc_depth: 3
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, warning = F, message = F)
+knitr::opts_chunk$set(echo = F, warning = F, message = F,tidy = T )
 ```
+
+\pagebreak
 
 # 1. Introduction
 
@@ -95,30 +100,79 @@ df.rev.cleaned <- cbind(df.rev.cleaned,dummyvars)
 
 ## 2.1 Exploratory Data Analysis (EDA)
 
+In this section intresting observations in the data are noted and used to characterize the population of customers. 
 
-```{r}
+### 2.1.1 Customer profile
+
+Figure 1 shows the customer portfolio of the insurance company. It is seen from figure 1 that majority of the customers hold blue collar and clerical roles. The income and home values are zero inflated, likely contributed by students and home makers. Nearly 25% of the customers have been involved in a car crash. Most of the customers are with the policy less than 2 years. 
+
+ 
+```{r, fig.cap="Customer portfolio"}
 library(forcats)
 library(ggplot2)
-ggplot(data = df.rev.cleaned[!is.na(df.rev.cleaned$INCOME),], mapping = aes(x = fct_reorder(JOB,INCOME), y = INCOME,color = JOB)) + geom_boxplot() + coord_flip() + theme_bw() + xlab("JOB") + geom_vline(xintercept = 4.5,linetype = "dashed", color = "red") + theme(legend.position = "none")
+cp <- ggplot(data = df.rev.cleaned)
+cpbar <- cp + geom_bar(mapping = aes(fct_rev(fct_infreq(JOB)))) + theme_classic() + scale_x_discrete(drop = FALSE) + xlab("JOB") + coord_flip()
 
-df.rev.cleaned <- df.rev.cleaned %>% dplyr::mutate(JOB.category = ifelse(JOB %in% c("Student", "Home Maker", "Clerical", "z_Blue_Collar"),0,1))
+cpage <- cp + geom_histogram(aes(x = AGE)) + theme_classic()
+cpincome <- cp + geom_histogram(aes(x = INCOME)) + theme_classic()
+cphomeval <- cp + geom_histogram(aes(x = HOME_VAL)) + theme_classic()
+cpTIF <- cp + geom_histogram(aes(x = TIF)) + theme_classic() + xlab('Time in force')
+cpRisk <- cp + geom_bar(aes(x=TARGET_FLAG)) + xlab("Involved in crash - Yes (1) or No (0)") + theme_classic()
 
-
-corcols <- sapply(df.rev.cleaned,is.numeric)
-corcols[grep("_Missing",colnames(df.rev.cleaned))] <- F
-cordata <- cor(df.rev.cleaned[complete.cases(df.rev.cleaned), corcols])
-corrplot::corrplot(cordata,tl.cex = 0.6)
+gridExtra::grid.arrange(cpbar,cpage,cpincome,cphomeval,cpTIF,cpRisk, nrow = 2, ncol =3)
 ```
 
+It is seen that majority of the customers own cars that are new; less than 2 years old. The older cars are owned by professionals and by the group who has their nature of job missing (potentially not disclosed). Also interestingly that cars that are between 14 and 15 years of age are missing from the population. As seen in histogram in figure 2. 
 
+```{r, fig.cap="car age"}
+
+p <- ggplot(data = df.rev.cleaned[!is.na(df.rev.cleaned$CAR_AGE),])
+caragehist <- p + geom_histogram(mapping = aes(x = CAR_AGE)) + theme_bw() + xlab("Age of cars")
+caragebox <- p + geom_boxplot(mapping = aes(y = CAR_AGE, x = fct_reorder(JOB,CAR_AGE), color = JOB, fill = JOB),alpha = 0.25) + theme_classic() + theme(legend.position = "none") + coord_flip() + xlab("JOB") + ylab("Age of cars") + geom_hline(yintercept = 8,linetype = "dashed", color = "red") 
+
+gridExtra::grid.arrange(caragehist,caragebox, ncol = 2)
+```
+
+Figure 3 explores the missing JOB data. The missing JOB values lines up with the population of white collar jobs. From the income, age and year on the job perspective. Also the zero inflation in income is contributed by students and home makers. The jobs above the red dashed lines the income boxplot is defined as white collar.
+
+```{r, fig.cap="Missing JOB profile"}
+
+cpIncome <- ggplot(data = df.rev.cleaned[!is.na(df.rev.cleaned$INCOME),], mapping = aes(x = fct_reorder(JOB,INCOME), y = INCOME,color = JOB)) + geom_boxplot() + coord_flip() + theme_bw() + xlab("JOB") + geom_vline(xintercept = 4.5,linetype = "dashed", color = "red") + theme(legend.position = "none") 
+
+# white collar indicator variable
+df.rev.cleaned <- df.rev.cleaned %>% dplyr::mutate(JOB.category = ifelse(JOB %in% c("Student", "Home Maker", "Clerical", "z_Blue_Collar"),0,1))
+
+cpAgeblank <-  df.rev.cleaned %>% 
+  filter(!is.na(INCOME)) %>% 
+  filter(JOB == " ") %>% 
+  select(JOB,AGE) %>% 
+  mutate(JOB = ifelse(JOB == " ", "NA", JOB)) %>% 
+   ggplot () + geom_density(aes(x = AGE), alpha = 0.25) + theme_bw()
+
+cpAge.Job.cat <- df.rev.cleaned %>% 
+   ggplot() + geom_density(aes(AGE, color = factor(JOB.category,labels= c("Blue color", "white color"))),alpha = 0.25) + theme_bw() + labs(color = "Jobs",cex = 0.7)
+ 
+ cp.YOJ <- ggplot(data = df.rev.cleaned[!is.na(df.rev.cleaned$YOJ),], mapping = aes(x = fct_reorder(JOB,YOJ), y = YOJ,color = JOB)) + geom_boxplot() + coord_flip() + theme_bw() + xlab("JOB") + ylab("Year on the job") + geom_hline(yintercept = 10,linetype = "dashed", color = "red") + theme(legend.position = "none")
+ 
+ gridExtra::grid.arrange(cpIncome,cpAgeblank, cpAge.Job.cat, cp.YOJ, ncol = 2, nrow = 2)
+```
+
+### 2.1.2 Attribute variables
+
+The categorical variables are transformed into indicator variables to be used in modeling. The missing data points are manifested as indicator variables.
+
+
+### 2.1.3 Handling missing data
+
+The complete cases would be used to determine key features required for modeling. If data for key features are missing, an imputation strategy would be determined. 
 
 # 3. Feature Selection
 
-In this section we consider various feature selection methodologies such as 1. Decision Trees, 2. Peanalized model - Lasso 
+In this section we consider various feature selection methodologies such as 1. Decision Trees, 2. Peanalized model - Lasso
 
 ## 3.1 Training and Test data partition
 
-In order to test if the feature selection are really useful, feature selections need to be cross validated on a hold out test data set. 80% of the data is used as training and the rest is used as hold out for testing.
+In order to test if the feature selection are really useful, feature selections need to be cross validated on a hold out test data set. 80% of the data is used as training and the rest is used as hold out for testing. A stratified sampling method is used to capture identical percentage of samples involved in crash. 
  
 
 ```{r}
@@ -132,9 +186,9 @@ test <- df.rev.cleaned[-trainRows,]
 
 ## 3.2 Decision Tree
 
-Decision tree model is fitted on the training set to identify stand out splits in the data based on Gini index. The decision tree is shown in figure 3. Bagging technique is used to minimize variance in the model to ensure we have a reliable feature selection. The important features are shown in figure 4.
+Decision tree model is fitted on the training set to identify stand out splits in the data based on Gini index. The decision tree is shown in figure 4. Bagging technique is used to minimize variance in the model to ensure we have a reliable feature selection. The important features are shown in figure 5.
 
-```{r, fig.cap= "Decision Tree"}
+```{r, fig.cap= "Decision Tree",fig.height= 5}
 # tr <- tree::tree(TARGET_FLAG2 ~. - TARGET_FLAG, data = training)
 # summary(tr)
 # cv.tr <- cv.tree(tr,FUN = prune.misclass,K = 100)
@@ -167,7 +221,9 @@ test$predicted.prob <- predict(tr.bagged,newdata = test,type = 'prob')[,"Yes"]
 rocCurve.test <- roc(response = test$TARGET_FLAG , predictor = test$predicted.prob)
 
 ```
-The decision tree was used to predict the hold out test data and the AUC was found to be `r paste(round(pROC::auc(rocCurve.test),2)*100,"%")` as shown in figure 5. Therefore we'll use the top 13 predictors as shown in figure 4. In the next section we will explore penalized models to gather important predictors.
+
+
+The decision tree was used to predict the hold out test data and the AUC was found to be `r paste(round(pROC::auc(rocCurve.test),2)*100,"%")` as shown in figure 6. Therefore we'll use the top 13 predictors as shown in figure 4. In the next section we will explore penalized models to gather important predictors.
 
 ```{r, fig.cap="Prediction of bagged decision tree" }
 
@@ -180,7 +236,7 @@ text(0.2,0.8,paste("AUC.test:",round(pROC::auc(rocCurve.test),2)),col = 'blue')
 
 ## 3.3 Penalized model - Lasso
 
-The variableselection property of Lasso is used to aid with automated variable selection. Again the model is trained on training data set and tested on a hold out dataset, as in the decision tree method. However a 10 fold cross validation method was used to identify the optimal penalization parameter - lambda. The below plot shows the coefficients that are not zero in the decreasing order of absolute value of coefficients.
+The variable selection property of Lasso is used to aid with automated variable selection. Again the model is trained on training data set and tested on a hold out dataset, as in the decision tree method. However a 10 fold cross validation method was used to identify the optimal penalization parameter - lambda. The below plot shows the coefficients that are not zero in the decreasing order of absolute value of coefficients.
 
 ```{r, fig.cap="Feature selection - Lasso"}
 library(glmnet)
@@ -201,11 +257,15 @@ glmnet.model <- glmnet(x = glmnet.x, y = glmnet.y[!is.na(glmnet.y)], family = 'b
 # feature selection
 colidx <- predict(glmnet.model,  type = "coefficients", s = gplmnet.model$lambda.min)
 features <- data.frame(features = rownames(colidx), coefs = colidx[1:length(colidx)]) %>% mutate(abscoef = abs(coefs))
+
 ggplot(data = features, mapping = aes(y = abscoef, x = fct_reorder(features,abscoef))) + geom_point() + coord_flip() + theme_bw() + theme(axis.text.y = element_text(size = 6)) + geom_vline(xintercept = 44.5,linetype = "dashed", color = "red") + theme(legend.position = "none") + xlab("Features") + ylab("Absolute Coefficients")
 ```
+
+
+
 ## 3.3.1 Logistic regression as penalized models - Lasso
 
-While the peanalized regression model is used for feature selection, it may be used for prediction as well. The predictive power was tuned by choosing that proabbaility threshold that maximizes True Positive Rate (TPR) and minimizes False Positive Rate (FPR). The ROC curves for the training and test samples are shown below.
+While the peanalized logistic regression model is used for feature selection, it may be used for prediction as well. The ROC curves for the training and test samples are shown below.
 
 ```{r, fig.cap='Lasso ROC curves for test and training data'}
 glmnet.x.test <- model.matrix(TARGET_FLAG ~. , data = test.glmnet)[,-1]
@@ -219,7 +279,7 @@ train.prob <- predict(glmnet.model,type = "response",s = gplmnet.model$lambda.mi
 train.class <- ifelse(train.prob >= 0.5, 1, 0)
 rocCurve.lasso.train <- roc(response = glmnet.y, predictor = predict(glmnet.model,type = "response",s = gplmnet.model$lambda.min,newx = glmnet.x))
 
-
+# Overlaying ROC curves for train and test samples
 plot(rocCurve.lasso.test,asp = NA,legacy.axes = T, col = 'red')
 text(0.2,0.7,paste("Test AUC:", round(pROC::auc(rocCurve.lasso.test),2)),col = 'red')
 plot(rocCurve.lasso.train,asp = NA,legacy.axes = T, col = 'blue',add = T)
@@ -230,14 +290,35 @@ lassostats <- data.frame(Threshold = rocCurve.lasso.train$thresholds, TPR = rocC
 optimalThd <- lassostats %>% dplyr::arrange(desc(TPR), FPR) %>% filter(FPR < 0.2) %>% head(1)
 
 # Confusion matrix train and test
-predict.test.class <- ifelse(glmnet.test >= optimalThd[,1] ,1, 0)
+predict.test.class <- ifelse(glmnet.test >= 0.5 ,1, 0) # Did not use Optimal cut off
 confusionMatrix.test <- table(glmnet.y.test,predict.test.class)
 miss.class.test <- 1 - sum(diag(confusionMatrix.test))/sum(confusionMatrix.test)
-knitr::kable(confusionMatrix.test)
+#knitr::kable(confusionMatrix.test)
 
-predict.train.class <- ifelse(train.prob >= optimalThd[,1] ,1, 0)
+predict.train.class <- ifelse(train.prob >= 0.5 ,1, 0) # Did not use Optimal cut off
 confusionMatrix.train <- table(glmnet.y,predict.train.class)
-miss.class <- 1 - sum(diag(confusionMatrix.train))/sum(confusionMatrix.train)
+miss.class.train <- 1 - sum(diag(confusionMatrix.train))/sum(confusionMatrix.train)
+
+gainstbl.lasso.train <- gains::gains(actual = glmnet.y,predicted = train.prob)
+good.train <- ceiling(gainstbl.lasso.train$obs*gainstbl.lasso.train$mean.resp)
+bad.train <- gainstbl.lasso.train$obs - good.train
+KS.lasso.train <- round(max(gainstbl.lasso.train$cume.pct.of.total - cumsum(bad.train/sum(bad.train))),1)
+matgain.train <- cbind(gainstbl.lasso.train$cume.pct.of.total, seq(0.1,1,length.out = 10))
+
+gainstbl.lasso.test <- gains::gains(actual = glmnet.y.test,predicted = glmnet.test)
+good.test <- ceiling(gainstbl.lasso.test$obs*gainstbl.lasso.test$mean.resp)
+bad.test <- gainstbl.lasso.test$obs - good.test
+KS.lasso.test <- round(max(gainstbl.lasso.test$cume.pct.of.total - cumsum(bad.test/sum(bad.test))),1)
+matgain.test <- cbind(gainstbl.lasso.test$cume.pct.of.total, seq(0.1,1,length.out = 10))
+```
+
+```{r}
+# plotting Gain chart
+
+matplot(cbind(matgain.train,matgain.test[,1]), type = "o",pch = 1, ylab = "Cum % Crash", xlab = "Bins",main = "Gains - Lasso",cex.main = 0.9,cex.lab = 0.7)
+legend("bottomright",pch = 1, col = 1:3,legend = c("Training", "Random", "Test"),lty = 1:3,cex = 0.7)
+
+
 
 ```
 

@@ -3,10 +3,22 @@ PackratVersion: 0.4.8.1
 RVersion: 3.3.2
 Repos: CRAN=https://cran.rstudio.com/
 
+Package: AppliedPredictiveModeling
+Source: CRAN
+Version: 1.1-6
+Hash: 52ae83dc9645d74f33262281aadb6598
+Requires: CORElearn, plyr, reshape2
+
 Package: BH
 Source: CRAN
 Version: 1.62.0-1
 Hash: 14dfb3e8ffe20996118306ff4de1fab2
+
+Package: CORElearn
+Source: CRAN
+Version: 1.51.2
+Hash: 45cfb4887a500b6eeda55655c48604d0
+Requires: rpart
 
 Package: CVST
 Source: CRAN
@@ -55,6 +67,12 @@ Package: RColorBrewer
 Source: CRAN
 Version: 1.1-2
 Hash: c0d56cd15034f395874c870141870c25
+
+Package: ROCR
+Source: CRAN
+Version: 1.0-7
+Hash: 086f78987ebf3c55b01013ee64a5e1e2
+Requires: gplots
 
 Package: Rcpp
 Source: CRAN
@@ -234,6 +252,17 @@ Source: CRAN
 Version: 1.5
 Hash: 258cf79a8dbeedf1c981cdb53837d2af
 
+Package: gains
+Source: CRAN
+Version: 1.2
+Hash: 41768947d69949bb79078036a03aa3e5
+
+Package: gdata
+Source: CRAN
+Version: 2.18.0
+Hash: 62797fafa287d1845a014c615d46e50c
+Requires: gtools
+
 Package: ggdendro
 Source: CRAN
 Version: 0.1-20
@@ -268,6 +297,12 @@ Source: CRAN
 Version: 0.1.2
 Hash: 77a20b3ef7f9a1a7ed19457b36978605
 
+Package: gplots
+Source: CRAN
+Version: 3.0.1
+Hash: b7abe122479c203aa236499b7fc4b816
+Requires: caTools, gdata, gtools
+
 Package: gridExtra
 Source: CRAN
 Version: 2.3
@@ -278,6 +313,11 @@ Package: gtable
 Source: CRAN
 Version: 0.2.0
 Hash: cd78381a9d3fea966ac39bd0daaf5554
+
+Package: gtools
+Source: CRAN
+Version: 3.5.0
+Hash: 471b2e2452dfb30fdc1dd6f1b567925a
 
 Package: haven
 Source: CRAN
