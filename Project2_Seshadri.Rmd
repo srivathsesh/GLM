@@ -384,9 +384,43 @@ legend("bottomright", col = c("blue","red"),lty = 1,legend = c("Train", "Test"),
 text(x = 0.2,y = 0.6, paste("AUC:",auc.train.logis,"KS:",ks.train.logis), col = "blue")
 text(x= 0.2, y= 0.5, paste("AUC:",auc.test.logis,"KS:",ks.test.logis), col = "red")
 
+# class prediction
+predict.train.class.logis <- ifelse(train.logistic.full$fitted.values >= 0.5,1,0)
+predict.test.class.logis <- ifelse(predicted.logistic.prob >= 0.5,1,0)
+confusionMatrix.train.logis <- caret::confusionMatrix(data = predict.train.class.logis,training.logistic$TARGET_FLAG, positive = "1")
+
+confusionMatrix.test.logis <- caret::confusionMatrix(data = predict.test.class.logis,test.logistic$TARGET_FLAG, positive = "1")
+confusionMatrix.test.logis
+
 ```
 
-The performance of the model on complete cases seem to be good. However, the model does require features that has data missing. We'll use the KNN imputation method to impute data. 
+
+```{r, fig.cap='Gain Chart for All models so far'}
+# Gain charts
+logistic.pred.train <- ROCR::prediction(predictions = train.logistic.full$fitted.values,training.logistic$TARGET_FLAG)
+logistic.gain.train <- ROCR::performance(logistic.pred.train,"tpr","rpp")
+logistic.gain.train.x <- unlist(slot(logistic.gain.train,'x.values'))
+logistic.gain.train.y <- unlist(slot(logistic.gain.train,'y.values'))
+logistic.pred.test <- ROCR::prediction(prediction = predicted.logistic.prob,test.logistic$TARGET_FLAG )
+logistic.gain.test <- ROCR::performance(logistic.pred.test ,"tpr","rpp")
+logistic.gain.test.x <- unlist(slot(logistic.gain.test,'x.values'))
+logistic.gain.test.y <- unlist(slot(logistic.gain.test,'y.values'))
+
+plot(lasso.gain.train.x,lasso.gain.train.y,lwd =2)
+lines(x=c(0, 1), y=c(0, 1), type="l", col="red", lwd=2,
+      ylab="True Positive Rate", 
+     xlab="Rate of Positive Predictions")
+lasso.gain.test.x <- unlist(slot(lasso.gain.test,'x.values'))
+lasso.gain.test.y <- unlist(slot(lasso.gain.test,'y.values'))
+lines(x = lasso.gain.test.x, y = lasso.gain.test.y,type = 'l',lwd = 2, col = 'orange')
+lines(x=c(0, 0.35, 1), y=c(0, 1, 1), col="darkgreen", lwd=2)
+lines(x = logistic.gain.train.x,y = logistic.gain.train.y,type ='l',lty = 2, col = "blue" )
+lines(x = logistic.gain.test.x,y = logistic.gain.test.y, type = 'l',lwd = 2, col = "darkblue")
+legend("bottomright", col = c("black","orange","red","darkgreen", "blue", "darkblue"),legend = c("Training.Lasso","Test.Lasso","Random","ideal","Train.Logistic","Test.Logistic" ),lty = 1,lwd = 2,cex = 0.7)
+title("Gain Chart - Lasso logistic and logistic",cex = 0.4)
+```
+
+The performance of the model on complete cases seem to be good and identical to the Lasso logistic regression model. However, the model does require features that has data missing. We'll use the KNN imputation method to impute data. 
 
 ```{r}
 df.rev.imputed <- VIM::kNN(df.rev.cleaned)
