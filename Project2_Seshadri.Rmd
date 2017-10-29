@@ -313,6 +313,7 @@ legend("bottomright", col = c("black","orange","red","darkgreen"),legend = c("Tr
 title("Gain Chart - Penalized Logistics regression",cex = 0.4)
 
 ```
+
 It can be seen from figure 8 and 9, lasso regression has 74% AUC and is better than a random model. The test performance is identical to the training performance. The misclassification is about 23%.  However performance on the records with missing values is yet evaluated and will be discussed in the modeling section. 
 
 ```{r}
@@ -329,6 +330,7 @@ confusionMatrix.test$table
 knitr::kable(round(confusionMatrix.test$overall,2), caption = "confusion matrix statistics - lasso logistic test")
 
 ```
+
 ## 3.4. Features selection conclusion.
 
 The following predictors are deemed useful for modeling purposes after the above feature selection process.
@@ -336,16 +338,16 @@ The following predictors are deemed useful for modeling purposes after the above
 ```{r}
 Pred.DecisionTrees <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12]
 Pred.Lasso <- as.character(features$features[order(features$abscoef, decreasing = T)] [ 1:10])
-dffeatures <- as.matrix(unique(c(Pred.DecisionTrees,Pred.Lasso))[-14],ncol = 3)
+dffeatures <- matrix(c(unique(c(Pred.DecisionTrees,Pred.Lasso))[c(-14,-16)]," ", " "),ncol = 3,byrow = T)
 #dffeatures <- dffeatures[which(dffeatures == '"(Intercept)"'*-1)]
 # dffeatures <- dffeatures [-14,]
 # dffeatures <- matrix(dffeatures, ncol = 3)
-knitr::kable(dffeatures[-14,1], caption = "Selected Features")
+knitr::kable(dffeatures, caption = "Selected Features from Decision Tree and Lasso regression")
 ```
 
 # 4. Modeling
 
-## 4.1. Logistic regression - use all features selected
+## 4.1. Logistic regression - using all features selected in section 3
 
 
 ```{r}
@@ -353,21 +355,24 @@ knitr::kable(dffeatures[-14,1], caption = "Selected Features")
 
 dffeatures <- dffeatures[grep('JOB', dffeatures)*-1]
 jobsvars <- colnames(df.rev.cleaned)[grep('JOB', colnames(df.rev.cleaned))[-1]]
-training.logistic <- training[complete.cases(training),c(dffeatures,"TARGET_FLAG",jobsvars)]
-write.csv(training.logistic, file = 'traininglogistic.csv')
-test.logistic <- test[complete.cases(test),c(dffeatures,"TARGET_FLAG",jobsvars)]
+training.logistic <- training[complete.cases(training),c(dffeatures,"TARGET_FLAG",jobsvars)[c(-13,-20)]]
+#write.csv(training.logistic, file = 'traininglogistic.csv')
+test.logistic <- test[complete.cases(test),c(dffeatures,"TARGET_FLAG",jobsvars)[c(-13,-20)]]
 train.logistic.full <- glm(TARGET_FLAG ~ . , family = binomial,data = training.logistic)
 ```
 
-A logistic regression with the above selected predcitors (section 3.4) is fitted. The summary of the fit is shown below. It can
-be seen from the Chi-squared goodness of fit that the model is adequate. There are some predictors whose slope is not significantly different from 0. 
+A logistic regression with the above selected predcitors (section 3.4) is fitted. Indicator variables for JOB is used for modeling. The summary of the fit is shown below. It can be seen from the Chi-squared goodness of fit that the model is adequate. There are some predictors whose regression coefficients are not significantly different from 0. In the next section a model without predictors with regression coeffiecients that are not significantly different from 0 would be explored. 
+
+The model has an AUC of 81% and KS statistic whose p value is zero, indicating an adequate fit. The model has misclassification of 20% for both the training and the test samples.
+
+The model is very identical to the Lasso regression. Choosing the variables the top 10 features from the Lasso variable selection along with features from the decision tree does not yield a model that's different from the Lasso itself. 
 
 ```{r, fig.cap="ROC curve for Logistic regression - full chosen predictors"}
 
 summary(train.logistic.full)
 anova(train.logistic.full, test = 'Chisq')
 
-paste("Goodness of fit test... P-Value" ,round(1 - pchisq(deviance(train.logistic.full),nrow(training.logistic) - length(train.logistic.full$coefficients)),2))
+paste("Goodness of fit test... P-Value" ,1 - pchisq(train.logistic.full$null.deviance - deviance(train.logistic.full),5161-5135))
 
 predicted.logistic.prob <- predict(object = train.logistic.full,newdata = test.logistic,type = 'response')
 
@@ -383,19 +388,23 @@ plot(rocCurve.test.logis,lwd=2,col = 'red',add = T, asp = NA, legacy.axes = T)
 legend("bottomright", col = c("blue","red"),lty = 1,legend = c("Train", "Test"),cex = 0.7)
 text(x = 0.2,y = 0.6, paste("AUC:",auc.train.logis,"KS:",ks.train.logis), col = "blue")
 text(x= 0.2, y= 0.5, paste("AUC:",auc.test.logis,"KS:",ks.test.logis), col = "red")
-
+title("ROC Curve for Logistic regression")
 # class prediction
 predict.train.class.logis <- ifelse(train.logistic.full$fitted.values >= 0.5,1,0)
 predict.test.class.logis <- ifelse(predicted.logistic.prob >= 0.5,1,0)
 confusionMatrix.train.logis <- caret::confusionMatrix(data = predict.train.class.logis,training.logistic$TARGET_FLAG, positive = "1")
 
 confusionMatrix.test.logis <- caret::confusionMatrix(data = predict.test.class.logis,test.logistic$TARGET_FLAG, positive = "1")
-confusionMatrix.test.logis
-
+# Printing confusion matrix
+confusionMatrix.train.logis$table
+knitr::kable(round(confusionMatrix.train.logis$overall,2), caption = "Confusion matrix statistics for Losgistic regression - Training sample")
+confusionMatrix.test.logis$table
+knitr::kable(round(confusionMatrix.test.logis$overall,2), caption = "Confusion matric statistics for Logistic regression - Test sample " )
 ```
 
 
 ```{r, fig.cap='Gain Chart for All models so far'}
+
 # Gain charts
 logistic.pred.train <- ROCR::prediction(predictions = train.logistic.full$fitted.values,training.logistic$TARGET_FLAG)
 logistic.gain.train <- ROCR::performance(logistic.pred.train,"tpr","rpp")
@@ -420,51 +429,105 @@ legend("bottomright", col = c("black","orange","red","darkgreen", "blue", "darkb
 title("Gain Chart - Lasso logistic and logistic",cex = 0.4)
 ```
 
-The performance of the model on complete cases seem to be good and identical to the Lasso logistic regression model. However, the model does require features that has data missing. We'll use the KNN imputation method to impute data. 
+### 4.1.1 Model performance on data including the missing values.
 
-```{r}
+The performance of the model on complete cases seem to be good and identical to the Lasso logistic regression model. However, the model does require features that has data missing. We'll use the KNN imputation method to impute data.
+
+```{r, fig.cap="Model performance on imputed test data"}
 df.rev.imputed <- VIM::kNN(df.rev.cleaned)
+set.seed(10)
 trainRows.imputed <- caret::createDataPartition(df.rev.imputed$TARGET_FLAG,p = 0.8, list = F)
 training.imputed <- df.rev.cleaned[trainRows.imputed,]
 test.imputed <- df.rev.imputed[-trainRows.imputed,]
 
 predicted.Imp.logistic.prob <- predict(object = train.logistic.full, newdata = test.imputed,type = 'response')
-
+predicted.Imp.logistic.class <- ifelse(predicted.Imp.logistic.prob >= 0.5,1,0)
 rocCurve.Imp.test.logistic <- pROC::roc(response = test.imputed$TARGET_FLAG, predictor = predicted.Imp.logistic.prob)
-plot(rocCurve.Imp.test.logistic, asp = NA, legacy.axes = T)
-pROC::auc(rocCurve.Imp.test.logistic)
+plot(rocCurve.Imp.test.logistic, asp = NA, legacy.axes = T, main = "ROC curve - Logistic regression on samples with imputed data", cex = 0.6)
+legend("bottomright",lty = 1,lwd = 2, legend = "Test sample with imputed data",cex = 0.7)
+text(0.1,0.7,paste("AUC:",round(pROC::auc(rocCurve.Imp.test.logistic),2)))
+
+confusionMatrix.imp.test <- caret::confusionMatrix(data = predicted.Imp.logistic.class,test.imputed$TARGET_FLAG, positive = "1")
+confusionMatrix.imp.test$table
+knitr::kable(confusionMatrix.imp.test$overall, caption = "Confusion matrix stats for Logistic regression on Imputed test data")
+```
+
+The model performance is identical to what was seen in above sections.
+
+## 4.2 Lositic regression with non-significant predictors (section 4.1) removed
+
+```{r}
+coef <- summary(train.logistic.full)$coefficients
+
 ```
 
 
+## 4.3 Logistic regression - using features selected using decision tree alone.
+
+### 4.3.1 Indicator variables
+
+As seen in figure 4, customers with house prices less than $66680 and claims greater 974.5 are more likely to be in a crash. It'll be useful to create indicator variables denoting this for modeling. Also the JOBs are categorized as blue collar and white collar. White collar being indicated as 1 and blue collar as 0.
+
 ```{r}
+df.rev.cleaned <- df.rev.cleaned %>% 
+                    mutate(HOME_VAL_Bucket = ifelse(HOME_VAL < 66680, 1,0)) %>% 
+                    mutate(OLDCLAIM_Bucket = ifelse(OLDCLAIM > 974.5,1,0))
+
+df.rev.imputed <- df.rev.imputed %>% 
+                    mutate(HOME_VAL_Bucket = ifelse(HOME_VAL < 66680, 1,0)) %>% 
+                    mutate(OLDCLAIM_Bucket = ifelse(OLDCLAIM > 974.5,1,0))
+
+```
+
+### 4.3.2 Model results
+
+It is seen from the model results that the goodness of fit is good. Also the signs of coefficients makes theoretical sense. So does models discussed above. 
 
 
-PotentialPred <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12]
-#df.rev.imputed <- VIM::kNN(df.rev.cleaned)
+```{r, fig.cap="ROC Logistic regression- predictors from Decision Tree"}
 
-#
 
-trainRows.models <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG2,p = 0.75, list = F)
-training.models <- df.rev.cleaned[trainRows.models,]
-test.models <- df.rev.cleaned[-trainRows.models,]
-y <- ifelse(training.models$TARGET_FLAG2 == "No",0,1)
-x <- as.matrix(training.models[ ,c(PotentialPred[-7],colnames(training.models) [grep("JOB_", colnames(training.models))])])
-dffit <- data.frame(y,x)
-fit1 <- glm(y~.,family = binomial,data = dffit[complete.cases(dffit),])
+PotentialPred <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12] 
+PotentialPred <- c(PotentialPred[grep("JOB",PotentialPred)*-1],colnames(df.rev.cleaned)[grep("_Bucket", colnames(df.rev.cleaned))],colnames(df.rev.cleaned)[grep("JOB.c",colnames(df.rev.cleaned))])[c(-3,-6)]
 
-summary(fit1)
-rocCurve.fit1.train <- roc(response = dffit[complete.cases(dffit),"y"], predictor = fit1$fitted.values)
-plot(rocCurve.fit1.train,legacy.axes = T, asp = NA)
-pROC::auc(rocCurve.fit1.train)
 
-x.test <- test.models[ ,c(PotentialPred[-7],colnames(training.models) [grep("JOB_", colnames(training.models))])]
-predictedClass <- ifelse(predict.glm(fit1,newdata = x.test, type = 'response') >= 0.5, 1,0)
 
-test.y <- ifelse(test.models$TARGET_FLAG2 == "No",0,1)
-table(predictedClass,test.y)
-rocCurve.fit1 <- roc(response = test.y, predictor = predict.glm(fit1,newdata = x.test, type = 'response'))
-plot(rocCurve.fit1, legacy.axes = T)
-pROC::auc(rocCurve.fit1)
+set.seed(10)
+
+trainRows.models <- caret::createDataPartition(df.rev.cleaned$TARGET_FLAG,p = 0.75, list = F)
+training.dt <- df.rev.cleaned[trainRows.models,c(PotentialPred,"TARGET_FLAG")]
+test.dt <- df.rev.cleaned[-trainRows.models,c(PotentialPred,"TARGET_FLAG")]
+
+logistic.dt.train <- glm(TARGET_FLAG ~ ., family = binomial,data = training.dt)
+summary(logistic.dt.train)
+paste("Goodness of fit test p Value :", 1- pchisq(logistic.dt.train$null.deviance - deviance(logistic.dt.train),12))
+
+# predict probabilities
+
+logistic.dt.test <- predict(object = logistic.dt.train, newdata = test.dt,type = 'response')
+
+# ROC curves
+rocCurve.dt.train.logis <- pROC::roc(response = training.dt[complete.cases(training.dt),"TARGET_FLAG"], predictor = logistic.dt.train$fitted.values)
+rocCurve.dt.test.logis <- pROC::roc(response = test.dt$TARGET_FLAG, predictor = logistic.dt.test)
+ks.dt.test.logis <- round(ks.test(logistic.dt.test,test.dt$TARGET_FLAG)$statistic,2)
+ks.dt.train.logis <- round(ks.test(logistic.dt.train$fitted.values,training.dt[complete.cases(training.dt),"TARGET_FLAG"])$statistic,2)
+plot(rocCurve.dt.train.logis,asp = NA, legacy.axes = T,col = "blue")
+plot(rocCurve.dt.test.logis, asp = NA, legacy.axes = T, col = "red", add = T)
+text(0.2,0.6,paste("Training AUC:",round(pROC::auc(rocCurve.dt.train.logis),2), "KS:",ks.dt.train.logis),cex = 0.7)
+text(0.2,0.5,paste("Test AUC:",round(pROC::auc(rocCurve.dt.test.logis),2),"KS:",ks.dt.test.logis),cex = 0.7)
+legend("bottomright",lty = 1, legend = c("Train", "Test"), col = c("Blue","Red"))
+title("ROC Logistic regression - predictors chosen from decison trees", cex = 0.8)
+
+predicted.train.dt.logis.class <- ifelse(logistic.dt.train$fitted.values >= 0.5,1,0)
+confusionMatrix.dt.train <- caret::confusionMatrix(data = predicted.train.dt.logis.class,training.dt[complete.cases(training.dt),"TARGET_FLAG"], positive = "1")
+confusionMatrix.dt.train$table
+knitr::kable(confusionMatrix.dt.train$overall, caption = "Confusion matrix stats Training set")
+
+predicted.test.dt.logis.class <- ifelse(logistic.dt.test >= 0.5,1,0)
+confusionMatrix.dt.test <- caret::confusionMatrix(data = predicted.test.dt.logis.class,test.dt$TARGET_FLAG, positive = "1")
+confusionMatrix.dt.test$table
+knitr::kable(confusionMatrix.dt.test$overall, caption = "Confusion matrix statsTest set")
+
 ```
 
 ```{r, eval=FALSE, include=FALSE}
