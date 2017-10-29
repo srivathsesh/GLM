@@ -108,6 +108,11 @@ Hash: fceedb78e192e5a134a4c85d2b1ff893
 Requires: Rcpp, car, colorspace, data.table, e1071, laeken, robustbase,
     sp, vcd
 
+Package: aod
+Source: CRAN
+Version: 1.3
+Hash: 77435e8d759ae6aa3c5fd9d8d384063d
+
 Package: assertthat
 Source: CRAN
 Version: 0.2.0

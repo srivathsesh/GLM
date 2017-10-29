@@ -236,9 +236,9 @@ text(0.2,0.8,paste("AUC.test:",round(pROC::auc(rocCurve.test),2)),col = 'blue')
 
 ## 3.3 Penalized model - Lasso
 
-The variable selection property of Lasso is used to aid with automated variable selection. Again the model is trained on training data set and tested on a hold out dataset, as in the decision tree method. However a 10 fold cross validation method was used to identify the optimal penalization parameter - lambda. The below plot shows the coefficients that are not zero in the decreasing order of absolute value of coefficients.
+The variable selection property of Lasso is used to aid with automated variable selection. Again the model is trained on training data set and tested on a hold out dataset, as in the decision tree method. However a 10 fold cross validation method was used to identify the optimal penalization parameter - lambda. Figure 7 shows the coefficients that are not zero in the decreasing order of absolute value of coefficients. The predictors falling above the red dashed line, drawn at the elbow in figure 7 are deemed good predictors. 
 
-```{r, fig.cap="Feature selection - Lasso"}
+```{r, fig.cap="Feature selection - Lasso",fig.height=4}
 library(glmnet)
 train.factorcols <- sapply(training,is.factor)
 traincols <- colnames(training)[!train.factorcols]
@@ -265,9 +265,9 @@ ggplot(data = features, mapping = aes(y = abscoef, x = fct_reorder(features,absc
 
 ## 3.3.1 Logistic regression as penalized models - Lasso
 
-While the peanalized logistic regression model is used for feature selection, it may be used for prediction as well. The ROC curves for the training and test samples are shown below.
+While the peanalized logistic regression model is used for feature selection, it may be used for prediction as well. All the predictors corresponding to non zero coefficients are considered as predictors. The ROC curves for the training and test samples are shown in figure 8 and the Gain chart is shown in figure 9.
 
-```{r, fig.cap='Lasso ROC curves for test and training data'}
+```{r, fig.cap='Lasso ROC curves for test and training data',fig.height=4}
 glmnet.x.test <- model.matrix(TARGET_FLAG ~. , data = test.glmnet)[,-1]
 glmnet.y.test= test.glmnet$TARGET_FLAG
 glmnet.test <- predict(glmnet.model, newx = glmnet.x.test, family = 'binomial',type = 'response')
@@ -280,46 +280,125 @@ train.class <- ifelse(train.prob >= 0.5, 1, 0)
 rocCurve.lasso.train <- roc(response = glmnet.y, predictor = predict(glmnet.model,type = "response",s = gplmnet.model$lambda.min,newx = glmnet.x))
 
 # Overlaying ROC curves for train and test samples
+lasso.ks.train <- round(ks.test(train.prob, glmnet.y)$statistic,2)
+lasso.ks.test <- round(ks.test(glmnet.test, glmnet.y.test)$statistic,2)
 plot(rocCurve.lasso.test,asp = NA,legacy.axes = T, col = 'red')
-text(0.2,0.7,paste("Test AUC:", round(pROC::auc(rocCurve.lasso.test),2)),col = 'red')
+text(0.2,0.7,paste("Test AUC:", round(pROC::auc(rocCurve.lasso.test),2), "Test KS:",lasso.ks.test),col = 'red')
 plot(rocCurve.lasso.train,asp = NA,legacy.axes = T, col = 'blue',add = T)
-text(0.2,0.6,paste("Train AUC:", round(pROC::auc(rocCurve.lasso.train),2)),col = 'blue')
-
-# Get optimal cutoff from training 
-lassostats <- data.frame(Threshold = rocCurve.lasso.train$thresholds, TPR = rocCurve.lasso.train$sensitivities , FPR = 1 - rocCurve.lasso.train$specificities)
-optimalThd <- lassostats %>% dplyr::arrange(desc(TPR), FPR) %>% filter(FPR < 0.2) %>% head(1)
-
-# Confusion matrix train and test
-predict.test.class <- ifelse(glmnet.test >= 0.5 ,1, 0) # Did not use Optimal cut off
-confusionMatrix.test <- table(glmnet.y.test,predict.test.class)
-miss.class.test <- 1 - sum(diag(confusionMatrix.test))/sum(confusionMatrix.test)
-#knitr::kable(confusionMatrix.test)
-
-predict.train.class <- ifelse(train.prob >= 0.5 ,1, 0) # Did not use Optimal cut off
-confusionMatrix.train <- table(glmnet.y,predict.train.class)
-miss.class.train <- 1 - sum(diag(confusionMatrix.train))/sum(confusionMatrix.train)
-
-gainstbl.lasso.train <- gains::gains(actual = glmnet.y,predicted = train.prob)
-good.train <- ceiling(gainstbl.lasso.train$obs*gainstbl.lasso.train$mean.resp)
-bad.train <- gainstbl.lasso.train$obs - good.train
-KS.lasso.train <- round(max(gainstbl.lasso.train$cume.pct.of.total - cumsum(bad.train/sum(bad.train))),1)
-matgain.train <- cbind(gainstbl.lasso.train$cume.pct.of.total, seq(0.1,1,length.out = 10))
-
-gainstbl.lasso.test <- gains::gains(actual = glmnet.y.test,predicted = glmnet.test)
-good.test <- ceiling(gainstbl.lasso.test$obs*gainstbl.lasso.test$mean.resp)
-bad.test <- gainstbl.lasso.test$obs - good.test
-KS.lasso.test <- round(max(gainstbl.lasso.test$cume.pct.of.total - cumsum(bad.test/sum(bad.test))),1)
-matgain.test <- cbind(gainstbl.lasso.test$cume.pct.of.total, seq(0.1,1,length.out = 10))
+text(0.2,0.6,paste("Train AUC:", round(pROC::auc(rocCurve.lasso.train),2),"Train KS:",lasso.ks.train),col = 'blue')
+title("ROC - Penalized Logistics regression")
 ```
 
+
+```{r, "Gain chart - Lasso logistic regression"}
+
+lasso.pred.train <- ROCR::prediction(predictions = train.prob,glmnet.y)
+lasso.gain.train <- ROCR::performance(lasso.pred.train,"tpr","rpp")
+
+lasso.pred.test <- ROCR::prediction(prediction = glmnet.test,glmnet.y.test )
+lasso.gain.test <- ROCR::performance(lasso.pred.test,"tpr","rpp")
+
+lasso.gain.train.x <- unlist(slot(lasso.gain.train,'x.values'))
+lasso.gain.train.y <- unlist(slot(lasso.gain.train,'y.values'))
+
+plot(lasso.gain.train.x,lasso.gain.train.y,lwd =2)
+lines(x=c(0, 1), y=c(0, 1), type="l", col="red", lwd=2,
+      ylab="True Positive Rate", 
+     xlab="Rate of Positive Predictions")
+lasso.gain.test.x <- unlist(slot(lasso.gain.test,'x.values'))
+lasso.gain.test.y <- unlist(slot(lasso.gain.test,'y.values'))
+lines(x = lasso.gain.test.x, y = lasso.gain.test.y,type = 'l',lwd = 2, col = 'orange')
+lines(x=c(0, 0.35, 1), y=c(0, 1, 1), col="darkgreen", lwd=2)
+legend("bottomright", col = c("black","orange","red","darkgreen"),legend = c("Training","Test","Random","ideal" ),lty = 1,lwd = 2,cex = 0.7)
+title("Gain Chart - Penalized Logistics regression",cex = 0.4)
+
+```
+It can be seen from figure 8 and 9, lasso regression has 74% AUC and is better than a random model. The test performance is identical to the training performance. The misclassification is about 23%.  However performance on the records with missing values is yet evaluated and will be discussed in the modeling section. 
+
 ```{r}
-# plotting Gain chart
+# Confusion matrix train and test
 
-matplot(cbind(matgain.train,matgain.test[,1]), type = "o",pch = 1, ylab = "Cum % Crash", xlab = "Bins",main = "Gains - Lasso",cex.main = 0.9,cex.lab = 0.7)
-legend("bottomright",pch = 1, col = 1:3,legend = c("Training", "Random", "Test"),lty = 1:3,cex = 0.7)
+predict.train.class <- ifelse(train.prob >= 0.5 ,1, 0) # Did not use Optimal cut off
+confusionMatrix.train <- caret::confusionMatrix(data = predict.train.class,glmnet.y, positive = "1")
+confusionMatrix.train$table
+knitr::kable(round(confusionMatrix.train$overall,2), caption = "confusion matrix statistics - lasso logistic train")
+
+predict.test.class <- as.factor(ifelse(glmnet.test >= 0.5 ,1, 0)) # Did not use Optimal cut off
+confusionMatrix.test <- caret::confusionMatrix(data = predict.test.class,glmnet.y.test, positive = "1")
+confusionMatrix.test$table
+knitr::kable(round(confusionMatrix.test$overall,2), caption = "confusion matrix statistics - lasso logistic test")
+
+```
+## 3.4. Features selection conclusion.
+
+The following predictors are deemed useful for modeling purposes after the above feature selection process.
+
+```{r}
+Pred.DecisionTrees <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12]
+Pred.Lasso <- as.character(features$features[order(features$abscoef, decreasing = T)] [ 1:10])
+dffeatures <- as.matrix(unique(c(Pred.DecisionTrees,Pred.Lasso))[-14],ncol = 3)
+#dffeatures <- dffeatures[which(dffeatures == '"(Intercept)"'*-1)]
+# dffeatures <- dffeatures [-14,]
+# dffeatures <- matrix(dffeatures, ncol = 3)
+knitr::kable(dffeatures[-14,1], caption = "Selected Features")
+```
+
+# 4. Modeling
+
+## 4.1. Logistic regression - use all features selected
 
 
+```{r}
+# We'll use the training and test sets that were partitioned for the lasso
 
+dffeatures <- dffeatures[grep('JOB', dffeatures)*-1]
+jobsvars <- colnames(df.rev.cleaned)[grep('JOB', colnames(df.rev.cleaned))[-1]]
+training.logistic <- training[complete.cases(training),c(dffeatures,"TARGET_FLAG",jobsvars)]
+write.csv(training.logistic, file = 'traininglogistic.csv')
+test.logistic <- test[complete.cases(test),c(dffeatures,"TARGET_FLAG",jobsvars)]
+train.logistic.full <- glm(TARGET_FLAG ~ . , family = binomial,data = training.logistic)
+```
+
+A logistic regression with the above selected predcitors (section 3.4) is fitted. The summary of the fit is shown below. It can
+be seen from the Chi-squared goodness of fit that the model is adequate. There are some predictors whose slope is not significantly different from 0. 
+
+```{r, fig.cap="ROC curve for Logistic regression - full chosen predictors"}
+
+summary(train.logistic.full)
+anova(train.logistic.full, test = 'Chisq')
+
+paste("Goodness of fit test... P-Value" ,round(1 - pchisq(deviance(train.logistic.full),nrow(training.logistic) - length(train.logistic.full$coefficients)),2))
+
+predicted.logistic.prob <- predict(object = train.logistic.full,newdata = test.logistic,type = 'response')
+
+# plotting ROC curve
+rocCurve.train.logis <- pROC::roc(response = training.logistic$TARGET_FLAG, predictor = train.logistic.full$fitted.values)
+rocCurve.test.logis <- pROC::roc(response = test.logistic$TARGET_FLAG, predictor = predicted.logistic.prob)
+ks.train.logis <- round(ks.test(train.logistic.full$fitted.values,training.logistic$TARGET_FLAG)$statistic,2)
+ks.test.logis <- round(ks.test(predicted.logistic.prob,test.logistic$TARGET_FLAG)$statistic,2)
+auc.train.logis <- round(pROC::auc(rocCurve.train.logis),2)
+auc.test.logis <- round(pROC::auc(rocCurve.test.logis),2)
+plot(rocCurve.train.logis,lwd = 2,col ='blue',asp = NA, legacy.axes = T)
+plot(rocCurve.test.logis,lwd=2,col = 'red',add = T, asp = NA, legacy.axes = T)
+legend("bottomright", col = c("blue","red"),lty = 1,legend = c("Train", "Test"),cex = 0.7)
+text(x = 0.2,y = 0.6, paste("AUC:",auc.train.logis,"KS:",ks.train.logis), col = "blue")
+text(x= 0.2, y= 0.5, paste("AUC:",auc.test.logis,"KS:",ks.test.logis), col = "red")
+
+```
+
+The performance of the model on complete cases seem to be good. However, the model does require features that has data missing. We'll use the KNN imputation method to impute data. 
+
+```{r}
+df.rev.imputed <- VIM::kNN(df.rev.cleaned)
+trainRows.imputed <- caret::createDataPartition(df.rev.imputed$TARGET_FLAG,p = 0.8, list = F)
+training.imputed <- df.rev.cleaned[trainRows.imputed,]
+test.imputed <- df.rev.imputed[-trainRows.imputed,]
+
+predicted.Imp.logistic.prob <- predict(object = train.logistic.full, newdata = test.imputed,type = 'response')
+
+rocCurve.Imp.test.logistic <- pROC::roc(response = test.imputed$TARGET_FLAG, predictor = predicted.Imp.logistic.prob)
+plot(rocCurve.Imp.test.logistic, asp = NA, legacy.axes = T)
+pROC::auc(rocCurve.Imp.test.logistic)
 ```
 
 
