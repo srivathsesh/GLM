@@ -10,6 +10,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = F, warning = F, message = F,tidy = T )
+source('getequation.R')
 ```
 
 \pagebreak
@@ -45,6 +46,11 @@ The following process steps were used for building a predicitve models:
     
 ## 1.2 Executive summary
 
+* The insurance company has 1/4th of its customer involved in a crash in the past. Refer figure 1. The customers seem to be a     risky pool. 
+* A logistic regression model was chosen to model the log-odds of crash. The model is:
+
+  1.25962419 - 3.12e-05 x BLUEBOOK  + 2.16761818 x  URBANICITY_Highly.Urban..Urban  + 0.70216247 x CAR_USE_Commercial  + 0.34795086 x  KIDSDRIV  + 0.01513301 x TRAVTIME  + 0.12305204 x  MVR_PTS  - 0.03429193 x CAR_AGE  - 0.81784286 x REVOKED_No  - 0.58964657 x  PARENT1_No  - 1.9e-06 x  HOME_VAL  - 0.05017022 x  TIF  + 0.18203741 x  CLM_FREQ  - 0.82496441 x  CAR_TYPE_Minivan  - 0.23550083 x  MSTATUS_Yes  - 0.40715006 x  JOB_.  - 0.97424013 x  JOB_Manager
+    
 
 # 2. Data
 
@@ -456,8 +462,43 @@ The model performance is identical to what was seen in above sections.
 
 ## 4.2 Lositic regression with non-significant predictors (section 4.1) removed
 
-```{r}
+The statistically non significant slopes were removed from the model above. The results for the revised model is similar for AUC, Accuracy and AIC. 
+
+```{r,fig.cap="ROC Curve for Logistic regression - reduced model"}
 coef <- summary(train.logistic.full)$coefficients
+predictors.lasso.rev <- row.names(coef)[coef[,4] <= 0.05][-1]
+training.logistic.rev <- training[complete.cases(training),c("TARGET_FLAG",predictors.lasso.rev)]
+test.logistic.rev <- test[complete.cases(test),c("TARGET_FLAG",predictors.lasso.rev)]
+
+train.logistic.rev <- glm(TARGET_FLAG ~ . , family = binomial,data = training.logistic.rev)
+summary(train.logistic.rev)
+predicted.logistic.rev <- predict(train.logistic.rev, newdata = test.logistic.rev,type = 'response')
+
+rocCurve.train.logis.rev <- pROC::roc(response = training.logistic.rev$TARGET_FLAG, predictor = train.logistic.rev$fitted.values)
+rocCurve.test.logis.rev <- pROC::roc(response = test.logistic.rev$TARGET_FLAG, predictor = predicted.logistic.rev)
+ks.train.logis.rev <- round(ks.test(train.logistic.rev$fitted.values,training.logistic.rev$TARGET_FLAG)$statistic,2)
+ks.test.logis.rev <- round(ks.test(predicted.logistic.rev,test.logistic.rev$TARGET_FLAG)$statistic,2)
+auc.train.logis.rev <- round(pROC::auc(rocCurve.train.logis.rev),2)
+auc.test.logis.rev <- round(pROC::auc(rocCurve.test.logis.rev),2)
+
+plot(rocCurve.train.logis.rev,lwd = 2,col ='blue',asp = NA, legacy.axes = T)
+plot(rocCurve.test.logis.rev,lwd=2,col = 'red',add = T, asp = NA, legacy.axes = T)
+legend("bottomright", col = c("blue","red"),lty = 1,legend = c("Train", "Test"),cex = 0.7)
+text(x = 0.2,y = 0.6, paste("AUC:",auc.train.logis.rev,"KS:",ks.train.logis.rev), col = "blue")
+text(x= 0.2, y= 0.5, paste("AUC:",auc.test.logis.rev,"KS:",ks.test.logis.rev), col = "red")
+title("ROC Curve for Logistic regression - reduced model")
+
+# class prediction
+predict.train.class.logis.rev <- ifelse(train.logistic.rev$fitted.values >= 0.5,1,0)
+predict.test.class.logis.rev <- ifelse(predicted.logistic.rev >= 0.5,1,0)
+confusionMatrix.train.logis.rev <- caret::confusionMatrix(data = predict.train.class.logis.rev,training.logistic.rev$TARGET_FLAG, positive = "1")
+
+confusionMatrix.test.logis.rev <- caret::confusionMatrix(data = predict.test.class.logis.rev,test.logistic.rev$TARGET_FLAG, positive = "1")
+# Printing confusion matrix
+confusionMatrix.train.logis.rev$table
+knitr::kable(round(confusionMatrix.train.logis.rev$overall,2), caption = "Confusion matrix statistics for Losgistic regression - Training sample")
+confusionMatrix.test.logis.rev$table
+knitr::kable(round(confusionMatrix.test.logis.rev$overall,2), caption = "Confusion matric statistics for Logistic regression - Test sample " )
 
 ```
 
@@ -484,7 +525,7 @@ df.rev.imputed <- df.rev.imputed %>%
 It is seen from the model results that the goodness of fit is good. Also the signs of coefficients makes theoretical sense. So does models discussed above. 
 
 
-```{r, fig.cap="ROC Logistic regression- predictors from Decision Tree"}
+```{r, fig.cap="ROC Logistic regression- predictors from Decision Tree",fig.height=4}
 
 
 PotentialPred <- rownames(tr.bagged$importance)[order(tr.bagged$importance,decreasing = T)][1:12] 
@@ -530,24 +571,98 @@ knitr::kable(confusionMatrix.dt.test$overall, caption = "Confusion matrix statsT
 
 ```
 
-```{r, eval=FALSE, include=FALSE}
-x2 <- as.matrix(training.models[,c("AGE","INCOME","TRAVTIME","BLUEBOOK","OLDCLAIM","CLM_FREQ","MVR_PTS")])
-x2.test <- test.models[,c("AGE","INCOME","TRAVTIME","BLUEBOOK","OLDCLAIM","CLM_FREQ","MVR_PTS")]
-dfit2 <- data.frame(y,x2)
-# write to file to check with JMP
-write.csv(dfit2, file = "dfit2.csv")
-fit2 <- glm(y~.,family = binomial,data = dfit2)
+\pagebreak
 
-rocCurve.fit2 <- roc(response = dfit2[complete.cases(dfit2),'y'], predictor = fit2$fitted.values)
-plot(rocCurve.fit2,asp = NA)
-pROC::auc(rocCurve.fit2)
-summary(fit2)
+# 5. Model selection.
 
-rocCurve.fit2.train <- roc(response = dfit2[complete.cases(dfit2),'y'], predictor = predictedClass2.train)
-plot(rocCurve.fit2.train)
-tab <- table(predictedClass2,test.models$TARGET_FLAG)
-(nrow(x2.test) - sum(diag(tab))) / nrow(x2.test)
-plot(rocCurve.fit2, legacy.axes = T)
-pROC::auc(rocCurve.fit2)
+The Eta models are summarized in the table below. The model from section 4.2 is chosen for its relative simplicity and it makes theoretical sense. The models produce the log odds of event, that needs "unlogitting" using the formula  $$ \pi = \frac{1}{1+ exp(-X\beta)}$$  
+
+Where $$ \eta = X\beta$$
+
+
+```{r}
+reportingtable <- data.frame(Section = c("4.1","4.2","4.3"),
+                            eta = c(getequation("TARGET_FLAG",train.logistic.full,4),getequation("TARGET_FLAG",train.logistic.rev,4),getequation("TARGET_FLAG",logistic.dt.train,4)),
+                           AUC = c(auc.test.logis,auc.test.logis.rev,round(pROC::auc(rocCurve.dt.test.logis),2)),
+                           KS = c(ks.test.logis,ks.test.logis.rev,ks.dt.test.logis),
+                           AIC = c(AIC(train.logistic.full),AIC(train.logistic.rev),AIC(logistic.dt.train)),
+                           Accuracy = c(confusionMatrix.test.logis$overall[1],confusionMatrix.test.logis.rev$overall[1],confusionMatrix.dt.test$overall[1]),
+                           Chosen = c("No", "Yes", "No"),
+                           Comments = c("Too many predictors needed", "Relatively less for the same performance", "Relatively less accuracy"))
+
+pander::pandoc.table(reportingtable)
+
+
+
 ```
 
+# 6. Modeling insurance payout
+
+```{r}
+df.rev.cleaned.payout <- df.rev.cleaned %>% 
+                         mutate(TARGET_AMT = df$TARGET_AMT) %>% 
+                            filter(TARGET_FLAG > 0) 
+
+# df.complete <- df.rev.cleaned.payout[complete.cases(df.rev.cleaned.payout),]
+# numericcols <- sapply(df.complete, is.numeric)
+# cordata <- df.complete[,c(numericcols)]
+# cordata <- cordata[,grep("_Missing",colnames(cordata))*-1]
+# correlations <- cor(cordata)
+# corrplot::corrplot(correlations,tl.cex = 0.4)
+lm.simple <- lm(TARGET_AMT ~ CAR_AGE + BLUEBOOK, data = df.rev.cleaned.payout)
+eqn <- getequation("TARGET_AMT",lm.simple,2)
+```
+
+
+In this section, a linear regression model for insurance payout is discussed. A simple model with CAR_AGE and BLUEBOOK is used as predictors. The dataset with payout > 0 is used for training. The model is as below:
+
+`r eqn `
+
+# 7. Model exporting and prediction
+
+The scoring code is in the appendix and stored as a separate file that goes along with this file. 
+
+```{r,eval=F}
+library("dplyr")
+predictionfile <- read.csv(file = 'logit_insurance_test.csv')
+# remove TARGET_FLAG and TARGET_AMT
+predictionfile <- predictionfile %>% select(c(-2,-3))
+
+# impute data
+df.imp <- VIM::kNN(predictionfile)
+
+# indicator variables created
+factorcols <- sapply(df.imp,is.factor)
+dummyvars <- dummy::dummy(df.imp[,factorcols],int = T)
+
+df.imp<- cbind(df.imp,dummyvars) %>% 
+     dplyr::mutate(JOB.category = ifelse(JOB %in% c("Student", "Home Maker", "Clerical", "z_Blue_Collar"),0,1))
+
+# Score model
+
+#P_TARGET_FLAG <- predict(train.logistic.rev,newdata = df.imp, type = 'response') - Use this in the source file to check
+# p.eqn <- getequation("P_TARGET_FLAG",train.logistic.rev,8) - Use this to get the eta equation correctly...available in the source
+#
+
+test_p <- df.imp %>% 
+  mutate(L_TARGET_FLAG = -1.25962419 - 3.12e-05 * BLUEBOOK  + 2.16761818 *  URBANICITY_Highly.Urban..Urban  + 0.70216247 *  CAR_USE_Commercial  + 0.34795086 *  KIDSDRIV  + 0.01513301 *  TRAVTIME  + 0.12305204 *  MVR_PTS  - 0.03429193 *  CAR_AGE  - 0.81784286 *  REVOKED_No  - 0.58964657 *  PARENT1_No  - 1.9e-06 *  HOME_VAL  - 0.05017022 *  TIF  + 0.18203741 *  CLM_FREQ  - 0.82496441 *  CAR_TYPE_Minivan  - 0.23550083 *  MSTATUS_Yes  - 0.40715006 *  JOB_.  - 0.97424013 *  JOB_Manager) %>% 
+  mutate(P_TARGET_FLAG = (1+exp(-1*L_TARGET_FLAG))^-1) %>% 
+  mutate(TARGET_AMT = ifelse(P_TARGET_FLAG < 0.5, 0, 4434.04 - 52.11 * CAR_AGE  + 0.12 *  BLUEBOOK)) %>% 
+  mutate(CRASH = ifelse(P_TARGET_FLAG < 0.5, 0, 1)) %>% 
+  select(INDEX,P_TARGET_FLAG,TARGET_AMT)
+  
+write.csv(test_p,'SESHADRI.logit_insurance_test.csv')
+
+
+# check results ... simple plots
+
+
+```
+
+# 8. Conclusion
+
+* The insurance company has 1/4th of its customer involved in a crash in the past. Refer figure 1. The customers seem to be a     risky pool. 
+* A logistic regression model was chosen to model the log-odds of crash. The model is:
+
+  1.25962419 - 3.12e-05 x BLUEBOOK  + 2.16761818 x  URBANICITY_Highly.Urban..Urban  + 0.70216247 x CAR_USE_Commercial  + 0.34795086 x  KIDSDRIV  + 0.01513301 x TRAVTIME  + 0.12305204 x  MVR_PTS  - 0.03429193 x CAR_AGE  - 0.81784286 x REVOKED_No  - 0.58964657 x  PARENT1_No  - 1.9e-06 x  HOME_VAL  - 0.05017022 x  TIF  + 0.18203741 x  CLM_FREQ  - 0.82496441 x  CAR_TYPE_Minivan  - 0.23550083 x  MSTATUS_Yes  - 0.40715006 x  JOB_.  - 0.97424013 x  JOB_Manager
+    
