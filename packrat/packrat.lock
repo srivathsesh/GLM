@@ -201,6 +201,12 @@ Version: 1.3.1
 Hash: 7ed2f9a3cdc72836fe74e62aa1c18853
 Requires: BH, Rcpp, robustbase, sfsmisc
 
+Package: descr
+Source: CRAN
+Version: 1.1.3
+Hash: 655a5e67f86adfd1b5b3e601084b852f
+Requires: xtable
+
 Package: dichromat
 Source: CRAN
 Version: 2.0-0
@@ -758,6 +764,11 @@ Source: CRAN
 Version: 1.1.1
 Hash: b326a762ddb04eef605cc88987fa71fb
 Requires: BH, Rcpp
+
+Package: xtable
+Source: CRAN
+Version: 1.8-2
+Hash: 7293235cfcc14cdff1ce7fd1a0212031
 
 Package: yaml
 Source: CRAN
