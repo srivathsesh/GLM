@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,tidy = T, out.width = 60)
+knitr::opts_chunk$set(echo = TRUE,tidy = T, out.width = 50)
 ```
 
 #Chapter 3 Question 1
@@ -93,7 +93,8 @@ BIC_model2 <- BIC(model2)
 q3bdf <- data.frame(Model = c(1,2),AIC = c(AIC_model1,AIC_model2), BIC = c(BIC_model1,BIC_model2))
 ```
 
-a. The odds ratio of white and non-white attendance based on logistic regression model is `r as.character(odds.ratio)`. It agrees with the question 2b above.
+a. The odds ratio of white and non-white attendance based on logistic regression model is `r as.character(odds.ratio)`. 
+It agrees with the question 2b above.
 
 b. 
 ```{r}
@@ -127,7 +128,7 @@ adj.odds.Ratio <- exp(coefficients(model2)[2])
 paste(" When effects of income and attend are controlled, change in race has an multiplicative effect of ", adj.odds.Ratio)
 ```
 The adjusted odds ratio for race is `r adj.odds.Ratio`
-When effects of income and attend are controlled, change in race has an multiplicative effect of ` r adj.odds.Ratio`
+When effects of income and attend are controlled, change in race has an multiplicative effect of `r adj.odds.Ratio`
 
 
 # Chapter 3 Question 4

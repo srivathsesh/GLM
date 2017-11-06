@@ -1,0 +1,133 @@
+---
+title: "Unit 3 Assignment"
+author: "Sri Seshadri"
+date: "11/5/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, message=F, warning=F}
+knitr::opts_chunk$set(echo = TRUE,tidy = T,tidy.opts=list(width.cutoff=60))
+library(dplyr)
+library(magrittr)
+```
+
+# Chapter 6 Question 1
+
+```{r, fig.cap= "Histogram stress", warning=F}
+stress <- read.csv(file = 'stress.csv')
+knitr::kable(mosaic::fav_stats(stress$STRESS), caption = "Summary statistics")
+par(mfrow = c(1,2))
+hist(stress$STRESS, main = "Histogram of stress - Frequency", xlab = "Stress")
+
+hist(stress$STRESS,prob = T, main = "Histogram of stress - Denisty", xlab = "Stress")
+curve(dpois(x,lambda = 1.72), 
+          col="darkblue", lwd=2, add=TRUE, from = 0, to = 9, n = 10, type = "l")
+```
+
+### a. Looking at the histogram and the summary statistic, where the mean and the standard deviaiton are alike, the most likely probability distribution in Poisson distribution. 
+
+```{r,fig.cap= "Normal Q-Q plot", warning=F}
+qqnorm(y = stress$STRESS, main = "Normal Q-Q plot of stress")
+qqline(y = stress$STRESS)
+```
+
+### b. The variable "Stress" is a count variable and is discrete in nature. It does not align with a continuous distribution like normal. The evidence is seen in the clustering of points at different levels in the Q-Q plot.
+
+# Chapter 6 Question 2
+
+```{r}
+options(width = 120)
+# poisson regression
+preg <- glm(formula = STRESS ~ COHES + ESTEEM + GRADES + SATTACH, family = poisson(link = 'log'), data = stress)
+preg.summary <- broom::tidy(preg)
+knitr::kable(preg.summary,digits = 2, caption = "Poisson regression coefficients")
+
+
+# overdispersed poisson regression
+overdisp.preg <- glm(formula = STRESS ~ COHES + ESTEEM + GRADES + SATTACH, family = quasipoisson(link = 'log'), data = stress)
+overdisp.preg.summary <- broom::tidy(overdisp.preg)
+knitr::kable(overdisp.preg.summary,digits = 2,
+             caption = "Overdispersed Poisson regression coefficients")
+# negative binomial
+nbreg <- MASS::glm.nb(formula = STRESS ~ COHES + ESTEEM + GRADES + SATTACH,data = stress)
+nbreg.summary <- broom::tidy(nbreg)
+knitr::kable(nbreg.summary,digits = 2, caption = "Negative binomial regression coefficients")
+```
+
+### a. 
+
+    1. Poisson regression:
+
+      An increase in cohes by 1 unit reduces stress by `r round(1-exp(preg.summary[2,2]),4)*100`%. 
+      An increase in sattach by 1 unit reduces stress by `r round(1-exp(preg.summary[5,2]),4)*100`%
+      
+    2. Negative binomial 
+
+         An increase in cohes by 1 unit reduces stress by `r round(1-exp(nbreg.summary[2,2]),4)*100`%. 
+         An increase in sattach by 1 unit reduces stress by `r round(1-exp(nbreg.summary[5,2]),4)*100`%
+         
+   It is seen that the point estimates do not change much by the choice of distribution, because the mean and standard devation are not too far from eachother. (However the standard error does.)
+   
+### b.
+
+
+```{r}
+
+
+ result <- stress %>% 
+    mutate(COHES.LEVEL = ifelse(COHES < mean(COHES) - sd(COHES),0, ifelse(COHES > mean(COHES) + sd(COHES),2,1))) %>% 
+    mutate(poisson.predict = preg$fitted.values) %>% 
+     mutate(nb.predict = nbreg$fitted.values) %>% 
+   group_by(COHES.LEVEL) %>% 
+   summarise(mean.poisson.prediction = mean(poisson.predict), mean.nb.prediction = mean(nb.predict))
+ 
+ knitr::kable(result, digits = 2, caption = "mean prediction for low (0), medium(1) , high(2) COHES")
+ 
+ 
+```
+
+### c.
+
+  Based on poisson regression the expected reduction in stress from high to low level of cohesion is :
+          `r round((result$mean.poisson.prediction[1] - result$mean.poisson.prediction[3]) / result$mean.poisson.prediction[1]*100,2)`%
+          
+  Based on negative binomial regression the expected reduction on stress from high to low lwvel of cohesion is :
+  
+  `r round((result$mean.nb.prediction[1] - result$mean.nb.prediction[3]) / result$mean.nb.prediction[1]*100,2)`%
+
+# Chapter 6 Question 3
+
+```{r}
+library(broom)
+glances <- rbind(glance(preg), glance(overdisp.preg), glance(nbreg))
+glances$model <- c('Poisson', 'Overdispersed Poisson','Negative Binomial')
+
+
+output <- glances %>% select(model,AIC,BIC,logLik)
+# Notice no AICs for overdispersion in Output
+
+
+# hand calculation of LogLik of overdispersed model
+glances$logLik[2] <- sum(dpois(stress$STRESS, lambda = overdisp.preg$fitted.values, log = T))
+
+# Notice the loglik for overdispersed model is same as for poisson. Since the AIC abd BICs are derived from the LogLik, the AIC
+# BIC for overdispersed model would be identical as poisson
+
+output[2,] <- output[1,]
+
+knitr::kable(output, digits = 2, caption = "AIC and BIC of models")
+```
+
+c.  Choosing Negative binomial in this case for lower AIC and BIC
+
+# Chapter 6 Question 4
+
+```{r}
+par(mfrow = c(1,2))
+plot(preg$fitted.values,residuals.glm(preg,type = 'deviance'),xlab = 'Fitted values', ylab = 'deviance residuals')
+plot(round(preg$fitted.values,0),residuals.glm(preg,type = 'deviance'))
+
+
+```
+
+

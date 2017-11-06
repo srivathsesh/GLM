@@ -1,0 +1,62 @@
+---
+title: "Aircraft Damage - Poisson Regression"
+author: "Sri Seshadri"
+date: "11/4/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(magrittr)
+```
+
+# Chapter 13 Example 13.8 Montgomery
+
+## Read in data and exploratory data analysis
+
+```{r}
+# read data in
+mydata <- readxl::read_xls('Aircraft Damage.xls')
+# remove the observation column for convenience
+mydata <- mydata[,-1]
+
+# plots
+hist(mydata$y)
+plot(mydata$x2,mydata$x3,col = ifelse(mydata$x1,"red","black"))
+lattice::xyplot(x3~x2 | x1 ,data= mydata, group = y,auto.key = list(columns = 7))
+cordata <- cor(mydata)
+corrplot::corrplot(cordata)
+```
+
+# Poisson Regression
+
+```{r}
+mdl <- glm(y ~ ., data = mydata, family = poisson(link = 'log'))
+summary(mdl)
+
+1 - pchisq(mdl$null.deviance - mdl$deviance,2)
+
+
+anova(mdl)
+anova(mdl, test = 'Chisq')
+anova(mdl, test = 'LRT')
+
+```
+
+```{r}
+car::vif(mdl)
+
+mdl2 <- glm(y ~ x2, data = mydata, family = poisson(link = 'log'))
+
+summary(mdl2)
+
+1 - pchisq(mdl2$null.deviance - mdl2$deviance,2)
+
+
+anova(mdl2, test = 'Chisq')
+anova(mdl2, test = 'LRT')
+
+lmtest::lrtest(mdl2)
+```
+

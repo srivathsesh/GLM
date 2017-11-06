@@ -128,6 +128,12 @@ Source: CRAN
 Version: 0.1-3
 Hash: c590d29e555926af053055e23ee79efb
 
+Package: bbmle
+Source: CRAN
+Version: 1.0.20
+Hash: 820dc4693f7cd98d0fbbb0e0be801db5
+Requires: numDeriv
+
 Package: bindr
 Source: CRAN
 Version: 0.1
