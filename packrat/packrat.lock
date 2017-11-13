@@ -542,6 +542,11 @@ Version: 0.6.1
 Hash: d19cfb2e21cf46a8116240690edb2e28
 Requires: Rcpp, digest
 
+Package: partykit
+Source: CRAN
+Version: 1.0-5
+Hash: f4822f83701f4688980c1b849c4b2d40
+
 Package: pbkrtest
 Source: CRAN
 Version: 0.4-7
@@ -579,6 +584,11 @@ Source: CRAN
 Version: 1.6.1
 Hash: a293698cbc0bfdc90d0ac23b988bb055
 Requires: Rcpp, lava
+
+Package: pscl
+Source: CRAN
+Version: 1.5.2
+Hash: edc37a083e8e221cc77d338c978d1082
 
 Package: psych
 Source: CRAN

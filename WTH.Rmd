@@ -1,0 +1,140 @@
+---
+title: "Wine sales prediction"
+author: "Sri Seshadri"
+date: "11/11/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+```
+
+# 1. Introduction
+
+A large wine manufacturer is studying data collected on 12,000 commercially available wines, with a goal to predict the number of cases ordered based upon the characteristics. The manufacturer intends to adjust the winde offerings based on the findings. The data collected is related to chemical properties of wine with response variable being the number of sample cases sold to distribution companies. the data also includes features like review stars provided by the tasters and label appeal. 
+
+# 2. Exploratory Data analysis
+
+The below table shows the summary statistics of the data. It is seen that there are missing data. "Stars" has the most missing values. The missing values mostly correspond to NO (0) cases sold. Which is most likely due to lack of opportunity to sample because of none sold.
+
+```{r}
+winedata <- read.csv(file = 'wine.csv')
+library(mosaic)
+# Compute overall statistic and show missing values
+sanitycheck <- do.call(rbind,dfapply(winedata,favstats, select = is.numeric))
+rowname <- rownames(sanitycheck)
+
+rownames(sanitycheck) <- rowname
+knitr::kable(round(sanitycheck,2), caption = "Summary Stats and missing values")
+Missing.Stars <- as.factor(ifelse(is.na(winedata$STARS),1,0))
+Missing.Alch <- as.factor(ifelse(is.na(winedata$Alcohol),1,0))
+Missing.Sulph <- as.factor(ifelse(is.na(winedata$Sulphates),1,0))
+Missing.pH <- as.factor(ifelse(is.na(winedata$Sulphates),1,0))
+Missing.TSD <- as.factor(ifelse(is.na(winedata$TotalSulfurDioxide),1,0))
+Missing.FSD <- as.factor(ifelse(is.na(winedata$FreeSulfurDioxide),1,0))
+Missing.Chl <- as.factor(ifelse(is.na(winedata$Chlorides),1,0))
+Missing.ResSug <- as.factor(ifelse(is.na(winedata$ResidualSugar),1,0))
+
+winedataeda <- cbind(winedata, Missing.ResSug,Missing.Chl,Missing.FSD,Missing.TSD,Missing.pH,Missing.Sulph,Missing.Alch,Missing.Stars)
+
+# Write to file for examination
+
+# write.csv(file = 'winedatamod.csv', winedata)
+
+```
+
+
+```{r, fig.cap="Missing STARS values' association with Number of cases sold", fig.height=4}
+library(ggplot2)
+p <- ggplot(data = winedataeda) 
+p + geom_bar(mapping = aes(x = TARGET, col = Missing.Stars, fill = Missing.Stars)) + theme_classic()
+
+#winedata %>% group_by(TARGET) %>% summarise_at("STARS", function(x) sum(is.na(x))/length(x)*100)
+```
+
+Figure 2 shows the historgram of features in the data. The chemical properties of wines appear to share an identical distribution with peaks closer to zero. This mau be likely to some standardization done to the day. 
+The variable "TARGET" looks to be poisson or negative biniomially distributed with inflation at 0. 
+
+
+```{r,fig.cap="Histograms of features"}
+windedataMelt <- reshape2::melt(winedata[,-1])
+ggplot(data = windedataMelt,mapping = aes(x = value)) + geom_histogram() + facet_wrap(~variable,scales = "free_x") + theme_bw()
+```
+
+\pagebreak
+
+# 3. Feature selection
+
+In this section we'll attempt to select important features that explain the target variable. We'll explore the correlations that might exist in the data. There is positive correlations between TARGET and STARS and LabelAppeal. 
+
+```{r, fig.cap="Correlation plot"}
+wine.complete <- winedata[complete.cases(winedata),]
+cordata <- cor(wine.complete)
+corrplot::corrplot(cordata, tl.cex = 0.7)
+
+winedata <- winedata %>% mutate(TARGET0 = as.factor(ifelse(TARGET > 0 ,0, 1)))
+```
+
+It'll be useful to identify what contributes to the zero inflation in the TARGET variable. For which let's create an indicator variable "TARGET0" to equal 1 when TARGET is 0 and 0 otherwise. 
+
+## 3.1 Decision Trees
+
+Figure 4 shows the decision tree for TARGET0. Where 1 is no sale (cases sold = 0) and 0 is sale (cases sold > 0 ). Figure 5 shows the variable importance plot after a random forest bootstrap. While LabelAppeal did not contribute to node purity (Decrease in Gini index), it did affect accuracy on out of bag (OOB) samples. 
+
+```{r, fig.cap= "Decision tree - Sale (0) or no Sale (1)"}
+predictors <- colnames(winedata)[c(-1,-2,-17)]
+response <- c("TARGET","TARGET0")
+tr <- rpart::rpart(formula = TARGET0 ~ ., data = winedata[,c(predictors, response[2])], method = "class")
+library(partykit)
+plot(partykit::as.party(tr), gp = gpar(fontsize = 8 ))
+```
+
+```{r, fig.cap= "Variable Importance - Randomforest"}
+randtr <- randomForest::randomForest(formula = TARGET0 ~ ., data = winedata[complete.cases(winedata),c(predictors, response[2])], importance = T)
+randomForest::varImpPlot(randtr,main = 'Variable Importance plot - Random forest')
+```
+
+
+
+```{r, fig.cap="Simple tree for TARGET"}
+windedata.filtered <- winedata %>% filter(TARGET0 == 0)
+tr2 <- rpart::rpart(formula = TARGET ~ ., data = windedata.filtered[,c(predictors, response[1])])
+plot(as.party(tr2),gp = gpar(fontsize = 8 ))
+```
+
+
+```{r, fig.cap="Variable importance plot - TARGET" }
+randtr2 <- randomForest::randomForest(formula = TARGET ~ ., data = windedata.filtered[complete.cases(windedata.filtered),c(predictors, response[1])], importance = T)
+randomForest::varImpPlot(randtr2, main = "Variable importance plot from random forest - TARGET")
+```
+
+# Poisson Regression
+
+```{r, eval=F}
+predictors <- colnames(winedata)[unlist(mosaic::dfapply(winedata, is.numeric))][-1]
+poisson.mdl <- glm(TARGET ~ STARS + LabelAppeal + Alcohol, family = poisson(link = 'log'),data = winedata[complete.cases(winedata),])
+summary(poisson.mdl)
+
+poisson.mld.full <- glm(TARGET ~ ., family = poisson(link = 'log'), data = winedata[complete.cases(winedata),predictors])
+summary(poisson.mld.full)
+
+poisson.mdl2 <- glm(TARGET ~ STARS + LabelAppeal, family = poisson(link = 'log'),data = winedata[complete.cases(winedata),])
+
+lmtest::lrtest(poisson.mdl, poisson.mdl2)
+
+plot(poisson.mld.full, col = winedata[complete.cases(winedata),'TARGET'])
+hist(poisson.mdl$fitted.values)
+hist(poisson.mdl2$fitted.values)
+
+nb.mdl <- MASS::glm.nb(TARGET ~ STARS + LabelAppeal + Alcohol,data = winedata[complete.cases(winedata),])
+summary(nb.mdl)
+
+models <- list(M1 = poisson.mdl, M2 = poisson.mdl2, M3 = poisson.mld.full, M4 = nb.mdl)
+sapply(models,glance)
+
+lmtest::lrtest(poisson.mld.full,nb.mdl)
+plot(winedata[complete.cases(winedata),"TARGET"],round(fitted(poisson.mdl),0))
+
+
+```
+

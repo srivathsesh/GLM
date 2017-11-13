@@ -1,0 +1,57 @@
+---
+title: "Unit 3 Project"
+author: "Sri Seshadri"
+date: "11/7/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+```
+
+# 1. Introduction
+
+# 2. About the data
+
+```{r}
+winedata <- read.csv(file = 'wine.csv')
+test <- winedata[complete.cases(winedata),]
+cordata <- cor(test)
+corrplot::corrplot(cordata)
+Acidityvars <- c("FixedAcidity", "pH", "VolatileAcidity","AcidIndex","CitricAcid")
+test_acid <- test[,Acidityvars]
+```
+
+```{r}
+winedata.filtered <- winedata %>% filter(TARGET > 0 )
+tr <- rpart::rpart(TARGET ~ ., data = winedata.filtered)
+library(partykit)
+plot(partykit::as.party(tr))
+Imp <- randomForest::randomForest(TARGET ~ ., data = winedata.filtered[complete.cases(winedata.filtered),], importance = T)
+randomForest::varImpPlot(Imp)
+```
+
+```{r}
+winedata.modified <- winedata %>% dplyr::mutate(target.dich = as.factor(ifelse(TARGET > 0,0,1)))
+tr2 <- rpart::rpart(target.dich ~ ., data = winedata.modified[,c(-1,-2)],method = "class")
+plot(partykit::as.party(tr2))
+library(ggplot2)
+
+test<- winedata.modified %>% filter(AcidIndex >= 9.5) %>% 
+  filter(STARS < 1.5) 
+test$target.dich <- as.integer(test$target.dich)
+library(mosaic)
+sanitycheck <- do.call(rbind,dfapply(test,favstats, select = is.numeric))
+tr3 <- randomForest::randomForest(target.dich ~ ., data = winedata.modified[complete.cases(winedata.modified),c(-1,-2)], imporance = T)
+
+randomForest::varImpPlot(tr3)
+```
+
+# Poisson model
+
+```{r}
+
+```
+
