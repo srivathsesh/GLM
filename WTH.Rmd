@@ -79,6 +79,8 @@ It'll be useful to identify what contributes to the zero inflation in the TARGET
 
 ## 3.1 Decision Trees
 
+### 3.1.1 Predictors for zero cases sold (No sale)
+
 Figure 4 shows the decision tree for TARGET0. Where 1 is no sale (cases sold = 0) and 0 is sale (cases sold > 0 ). Figure 5 shows the variable importance plot after a random forest bootstrap. While LabelAppeal did not contribute to node purity (Decrease in Gini index), it did affect accuracy on out of bag (OOB) samples. 
 
 ```{r, fig.cap= "Decision tree - Sale (0) or no Sale (1)"}
@@ -89,12 +91,16 @@ library(partykit)
 plot(partykit::as.party(tr), gp = gpar(fontsize = 8 ))
 ```
 
+
 ```{r, fig.cap= "Variable Importance - Randomforest"}
 randtr <- randomForest::randomForest(formula = TARGET0 ~ ., data = winedata[complete.cases(winedata),c(predictors, response[2])], importance = T)
 randomForest::varImpPlot(randtr,main = 'Variable Importance plot - Random forest')
 ```
 
 
+### 3.1.2 Predictors for cases sold; when successfuly sold (cases > 0)
+
+Figure 6 shows the decision tree of cases sold when they are greater than 0. It can be seen that the LabelAppeal and STARS are the top hitters. Figure 7 shows the variable importance plot when a random forest method is employed, where a random set of predictors are chosen at each iteration to fit a decision tree. Variables whose exclusion contributes to higher Mean Squared Error (MSE) is deemed important. LabelApeal, STARS and Alcohol are top 3 variables that are important.
 
 ```{r, fig.cap="Simple tree for TARGET"}
 windedata.filtered <- winedata %>% filter(TARGET0 == 0)
@@ -108,7 +114,42 @@ randtr2 <- randomForest::randomForest(formula = TARGET ~ ., data = windedata.fil
 randomForest::varImpPlot(randtr2, main = "Variable importance plot from random forest - TARGET")
 ```
 
-# Poisson Regression
+\pagebreak
+
+# 4. Training and validation samples
+
+The data is split into training and validation sample for evaluating models for final selection. The 75% of the data is sampled as training sample and the rest is set aside as validation set. Figure 8 shows that the TARGET variable is identically distributed for both training and validation samples.
+
+```{r, fig.cap="TARGET distribution for training and validation samples"}
+set.seed(10)
+train <- winedata %>%  dplyr::sample_frac(0.75)
+test <- winedata[!winedata$INDEX %in% train$INDEX,]
+par(mfrow = c(1,2))
+hist(train$TARGET, main = "TARGET from training sample", xlab = "TARGET", col = "red")
+hist(test$TARGET, main = "TARGET from test sample", xlab = "TARGET", col = "blue")
+
+
+```
+
+
+# 5. Modeling
+
+The following modeling approaches will be tried for predicting the number of cases sold.
+
+* Poisson regression
+* Negative binomial regression
+* Zero infalted Poisson regression
+* Zero inflated Negative binomial regression
+* OLS regression
+
+## 5.1 Poisson regression.
+
+As seen in table 1, the mean and standard deviation of TARGET are not too far apart. Poisson model is a good candidate for regression modeling.  
+
+```{r}
+
+```
+
 
 ```{r, eval=F}
 predictors <- colnames(winedata)[unlist(mosaic::dfapply(winedata, is.numeric))][-1]
