@@ -146,10 +146,29 @@ The following modeling approaches will be tried for predicting the number of cas
 
 As seen in table 1, the mean and standard deviation of TARGET are not too far apart. Poisson model is a good candidate for regression modeling.  
 
-```{r}
+### 5.1.1 Simple model with Label appeal as the predictor.
 
+While we know that the TARGET variable is zero inflated and there are atleast more than one important predictor from the section above, we'll attempt to build the model ground up with LabelAppeal as the single predictor.
+
+```{r}
+poisson.mdl1 <- glm(TARGET ~ LabelAppeal,family = poisson(link = 'log'), data = train)
+summary(poisson.mdl1)
+glance.poisson.mdl1 <- broom::glance(poisson.mdl1)
+
+poisson.mdl1.gof <- 1 - pchisq(poisson.mdl1$null.deviance - deviance(poisson.mdl1),1)
+poisson.mdl1.gof.overall <- 1 - pchisq(deviance(poisson.mdl1),poisson.mdl1$df.residual)
+
+# poisson.mdl2 <- glm(TARGET ~ LabelAppeal + STARS + Alcohol,family = poisson(link = 'log'), data = train)
+# summary(poisson.mdl2)
+# 
+# poisson.full <- glm(TARGET ~ .,family = poisson(link = 'log'), data = train[,c(-1,-17)] )
+# summary(poisson.full)
+# 1 -pchisq(deviance(poisson.mdl2)-deviance(poisson.full),11)
+lmtest::lrtest(poisson.mdl1)
+lmtest::lrtest.default(poisson.mdl1)
 ```
 
+It can be seen that the 
 
 ```{r, eval=F}
 predictors <- colnames(winedata)[unlist(mosaic::dfapply(winedata, is.numeric))][-1]
