@@ -91,7 +91,6 @@ library(partykit)
 plot(partykit::as.party(tr), gp = gpar(fontsize = 8 ))
 ```
 
-
 ```{r, fig.cap= "Variable Importance - Randomforest"}
 randtr <- randomForest::randomForest(formula = TARGET0 ~ ., data = winedata[complete.cases(winedata),c(predictors, response[2])], importance = T)
 randomForest::varImpPlot(randtr,main = 'Variable Importance plot - Random forest')
@@ -148,15 +147,19 @@ As seen in table 1, the mean and standard deviation of TARGET are not too far ap
 
 ### 5.1.1 Simple model with Label appeal as the predictor.
 
-While we know that the TARGET variable is zero inflated and there are atleast more than one important predictor from the section above, we'll attempt to build the model ground up with LabelAppeal as the single predictor.
+While we know that the TARGET variable is zero inflated and there are atleast more than one important predictor from the section above, we'll attempt to build the model ground up with LabelAppeal as the single predictor. 
 
 ```{r}
 poisson.mdl1 <- glm(TARGET ~ LabelAppeal,family = poisson(link = 'log'), data = train)
 summary(poisson.mdl1)
+lmtest::lrtest(poisson.mdl1)
 glance.poisson.mdl1 <- broom::glance(poisson.mdl1)
+glance.poisson.mdl1$pseudoR.Sq <- (poisson.mdl1$null.deviance - poisson.mdl1$deviance)/poisson.mdl1$null.deviance
+poisson.mdl1.predict <- predict(poisson.mdl1,newdata = subset(test,!is.na(test$LabelAppeal)), type = 'response')
+poisson.mdl1.coefs <- broom::tidy(poisson.mdl1)
+glance.poisson.mdl1$MAE <- mean(abs(test$TARGET[!is.na(test$TARGET)] - round(poisson.mdl1.predict,0)))
+knitr::kable(glance.poisson.mdl1,digits = 2,caption = "Simple Poisson model statistics")
 
-poisson.mdl1.gof <- 1 - pchisq(poisson.mdl1$null.deviance - deviance(poisson.mdl1),1)
-poisson.mdl1.gof.overall <- 1 - pchisq(deviance(poisson.mdl1),poisson.mdl1$df.residual)
 
 # poisson.mdl2 <- glm(TARGET ~ LabelAppeal + STARS + Alcohol,family = poisson(link = 'log'), data = train)
 # summary(poisson.mdl2)
@@ -164,11 +167,35 @@ poisson.mdl1.gof.overall <- 1 - pchisq(deviance(poisson.mdl1),poisson.mdl1$df.re
 # poisson.full <- glm(TARGET ~ .,family = poisson(link = 'log'), data = train[,c(-1,-17)] )
 # summary(poisson.full)
 # 1 -pchisq(deviance(poisson.mdl2)-deviance(poisson.full),11)
-lmtest::lrtest(poisson.mdl1)
-lmtest::lrtest.default(poisson.mdl1)
+
 ```
 
-It can be seen that the 
+#### 5.1.1.1 Model interpretation
+
+It can be seen from the Likelihood ratio test ab0ve, that the slope of LabelAppeal is NOT zero and an unit increase in label appeal increases by `r round(exp(poisson.mdl1.coefs[2,2]),0)`. However the model is not an adequate fit with residual deviance over degrees of freedom being much higher than 1 (in comparison to a saturated model). This is also reflected in the Pseudo R Squared value. 
+
+The model does not predict 0s. As can be see from figure 9. 
+
+```{r, fig.cap= "Simple poisson regression diagnostics",fig.height=6}
+layout <- matrix(c(1,2,3,4,5,5), ncol = 2, byrow = T)
+layout(layout)
+plot(poisson.mdl1)
+
+plot(poisson.mdl1$data$TARGET , round(poisson.mdl1$fitted.values,0), xlab = "TARGET", ylab = "Rounded fitted")
+```
+
+### 5.1.2 Poisson model with Label appeal & Stars as predictors
+
+Now, we'll use Label appeal and stars as predictors and compare the model with the simple model in the above section.
+
+```{r}
+
+poisson.mdl2 <- glm(TARGET ~ LabelAppeal + STARS, family = poisson(link = "log"), data = train[!is.na(train$LabelAppeal),])
+summary(poisson.mdl2)
+lmtest::lrtest(poisson.mdl2)
+plot(train$TARGET[!is.na(train$STARS)], round(poisson.mdl2$fitted.values,0))
+```
+
 
 ```{r, eval=F}
 predictors <- colnames(winedata)[unlist(mosaic::dfapply(winedata, is.numeric))][-1]

@@ -58,13 +58,13 @@ knitr::kable(nbreg.summary,digits = 2, caption = "Negative binomial regression c
 
     1. Poisson regression:
 
-      An increase in cohes by 1 unit reduces stress by `r round(1-exp(preg.summary[2,2]),4)*100`%. 
-      An increase in sattach by 1 unit reduces stress by `r round(1-exp(preg.summary[5,2]),4)*100`%
+      An increase in cohes by 1 unit reduces stress by `r round(exp(preg.summary[2,2]),4)`. 
+      An increase in sattach by 1 unit reduces stress by `r round(exp(preg.summary[5,2]),4)`
       
     2. Negative binomial 
 
-         An increase in cohes by 1 unit reduces stress by `r round(1-exp(nbreg.summary[2,2]),4)*100`%. 
-         An increase in sattach by 1 unit reduces stress by `r round(1-exp(nbreg.summary[5,2]),4)*100`%
+         An increase in cohes by 1 unit reduces stress by `r round(exp(nbreg.summary[2,2]),4)`. 
+         An increase in sattach by 1 unit reduces stress by `r round(exp(nbreg.summary[5,2]),4)`
          
    It is seen that the point estimates do not change much by the choice of distribution, because the mean and standard devation are not too far from eachother. (However the standard error does.)
    
