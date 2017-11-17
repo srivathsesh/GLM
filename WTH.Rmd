@@ -193,9 +193,16 @@ Now, we'll use Label appeal and stars as predictors and compare the model with t
 poisson.mdl2 <- glm(TARGET ~ LabelAppeal + STARS, family = poisson(link = "log"), data = train[!is.na(train$LabelAppeal),])
 summary(poisson.mdl2)
 lmtest::lrtest(poisson.mdl2)
-plot(train$TARGET[!is.na(train$STARS)], round(poisson.mdl2$fitted.values,0))
+
 ```
 
+It is seen that the regression model is statistically significant from the Likelihood Ratio Test (LRT) and the regression coefficents are also significant. It'll be interesting to see if there is value in dropping one of the regressors from the model. Below, LRT is performed by dropping one regressor from the model.
+
+```{r}
+drop1(poisson.mdl2, test = "Chisq")
+```
+
+From LRT, both Label Appeal and STARS appear significant with Label Appeal providing a marginal increase in model fit compared to STARS alone. This interpretation is onsistent with the decision tree interpretation in the section 3.1.2. 
 
 ```{r, eval=F}
 predictors <- colnames(winedata)[unlist(mosaic::dfapply(winedata, is.numeric))][-1]
