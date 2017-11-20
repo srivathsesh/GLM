@@ -141,7 +141,7 @@ hist(test$TARGET, main = "TARGET from test sample", xlab = "TARGET", col = "blue
 
 ## 4.1. The problem.
 
-The  TARGET variable from both training and validation (test) sample are associated with missing values of key predictors like STARS. GLM models in R ignores missing records for model fitting. In which case the zero inflation in the histograms in Figure 8 may not be representative in the training sample.
+The  TARGET variable from both training and validation (test) sample are associated with missing values of key predictors like STARS. GLM models in R ignores missing records for model fitting. In which case the zero inflation in the histograms in Figure 8 may not be representative in the training sample. Figure 9 illustrates the problem.
 
 ```{r, fig.cap="Histograms of TARGET when missing values of STARS is ignored"}
 issue.train <- train %>% filter(!is.na(STARS)) 
@@ -151,6 +151,14 @@ hist(issue.train$TARGET, col = "red", main = "Histogram of TARGET - Training", x
 hist(issue.test$TARGET, col = "blue", main = "Histogram of TARGET - Test", xlab = "TARGET")
 ```
 
+## 4.2 Problem Aleviation
+
+From figure 1 it is inferred that most of the missing STARS are attributed to TARGET of 0. This implies that since no cases were distributed, it is likely that the wines did not have the opportunity to be tasted for review stars. Therefore we will impute zeros to STARS when cases distributed (TARGET) is zero.
+
+```{r}
+train <- train %>% mutate(STARS = ifelse(is.na(STARS) & TARGET == 0,0,STARS))
+test <- train %>% mutate(STARS = ifelse(is.na(STARS) & TARGET == 0,0,STARS))
+```
 
 
 # 5. Modeling
@@ -233,7 +241,7 @@ plot(train[complete.cases(train[,c(14,16)]),2] , round(poisson.mdl2$fitted.value
 
 #### 5.1.2.1 Model interpretation.
 
-It is seen that the regression model is statistically significant from the Likelihood Ratio Test (LRT) and the regression coefficents are also significant. The MAE is 1.5 which is a marginally higher than the simple model with LabelAppeal as predictor. However the ratio of residual deviance to its degrees of freedom is significantly less than 1, which can be interpreted as better model fit to the data. This model also does not fit the zero counts. 
+It is seen that the regression model is statistically significant from the Likelihood Ratio Test (LRT) and the regression coefficents are also significant. The MAE is 1.5 which is a marginally higher than the simple model with LabelAppeal as predictor. However the ratio of residual deviance to its degrees of freedom is closer to 1, which can be interpreted as poor model fit to the data. This model also does not fit the zero counts. 
 
 ### 5.1.3 Dropping one predcitor from model.
 
@@ -243,12 +251,12 @@ It'll be interesting to see if there is value in dropping one of the regressors 
 drop1(poisson.mdl2, test = "Chisq")
 ```
 
-From LRT, both Label Appeal and STARS appear significant. Dropping Label Appeal (kepping STARS as the only predictor) providing a marginal increase in model fit compared to dropping STARS( keeping Label Appeal as the only predictor). This interpretation is onsistent with the decision tree interpretation in the section 3.1.2. 
+From LRT, both Label Appeal and STARS appear significant. Dropping Label Appeal (kepping STARS as the only predictor) provides a marginal increase in model fit compared to dropping STARS( keeping Label Appeal as the only predictor). This interpretation is onsistent with the decision tree interpretation in the section 3.1.2. 
 
 **The LRT test for model comparison may be biased, since the models may have different samples sizes due to missing data. However, LRT can be used as a guidance for model selection. It is examined in the below section just to be sure**
 
 
-### 5.1.3.1  Two models - A. STARS as predictor B. LabelAppeal and Interpretation.
+#### 5.1.3.1  Two models - A. STARS as predictor B. LabelAppeal and Interpretation.
 
 Verifying the results in the above section to make sure the drop1 test is providing us the expected results. It can be seen that when the data is kept contant between the models, the results are as expected. The result for model B is different from that of in section 5.1.1, this is because the data used to fit the model is different. Based on AIC and MAE comparison Label Appeal seems to be a better predcitor so far, when using a Poisson model.
 
@@ -364,7 +372,7 @@ knitr::kable(glance.poisson.mdl7,digits = 2,caption = "Poisson model statistics 
 
 #### 5.1.5.1 Model interpretation 
 
-Droping one predictor and performing the LRT, it can is seen below that removing AcidIndex does NOT move the needle on AIC. 
+Droping one predictor and performing the LRT, it can be seen below that removing AcidIndex does NOT move the needle on AIC. 
 ```{r}
 drop1(poisson.mdl7, test = "Chisq")
 ```
@@ -376,51 +384,240 @@ drop1(poisson.mdl7, test = "Chisq")
 poisson.models <- list(poisson.mdl1, poisson.mdl2, poisson.mdl3, poisson.mdl4,poisson.mdl5,poisson.mdl6,poisson.mdl7)
 poisson.equations <- sapply(poisson.models,function(x) getequation("TARGET",x, rounding = 3))
 poisson.summary <- cbind(model = poisson.equations,rbind(glance.poisson.mdl1,glance.poisson.mdl2,glance.poisson.mdl3,glance.poisson.mdl4,glance.poisson.mdl5,glance.poisson.mdl6,glance.poisson.mdl7))
-pander::pandoc.table(poisson.summary,digits = 1,caption = "Poisson fit summary")
+pander::pandoc.table(poisson.summary,digits = 2,caption = "Poisson fit summary",style = "grid")
 ```
 
-The poisson regression fits is summarized in the table above. The model 
+The poisson regression fits is summarized in the table above. The models 
 
           `r getequation("TARGET",poisson.mdl2,rounding =3 )`
+          `r getequation("TARGET",poisson.mdl3,rounding =3 )`
           
-seems to be a reasonable model without running the risk of overfitting. While the model that includes AcidIndex to the above model seems marginally better, but requires another predictor. However none of the models predict "no sales" well. Zero inflation poisson model would be useful and is explored in the next section.
+seems to be a reasonable model without running the risk of overfitting. While the model that includes AcidIndex to the above model seems marginally better, but requires another predictor for relatively similar MAE. However none of the models predict "no sales" well. Zero inflation poisson model would be useful and is explored in the next section.
 
 
 ## 5.2 Zero-Inflation Poisson regression (ZIP) model
 
+The challenge we faced in the above section is to predict the zeros cases sold. In this section the predictors that were identified for zero cases sold in section 3.1.1 (figure 5) will be used as predictors to predict no sale and predictors that were identified in section 3.1.2 (figure 7) would be used to predict cases sold when there was a sale.
+
+### 5.2.1 Zero Inflated Poisson (ZIP) model.
+
+Figure 5 shows STARS has the maximum affect on accuracy of predicting a sale (TARGET > 0) or no sale (TARGET = 0). STARS is used as predictor for predicting zero sale and for a start,STARS and LabelAppeal would be used for predicting TARGET > 0.  
+
+```{r, fig.cap="ZIP - rounded residuals vs TARGET"}
+poisson.zif.mdl1 <- pscl::zeroinfl(TARGET ~ LabelAppeal+ STARS|STARS , data = train )
+summary(poisson.zif.mdl1)
+par(mfrow = c(1,2))
+plot(poisson.zif.mdl1$model$TARGET,poisson.zif.mdl1$model$TARGET - round(poisson.zif.mdl1$fitted.values,0), xlab = "TARGET", ylab = "Residual (rounded)", main = "Residual vs TARGET")
+abline(0,0,lty = 2,col = "red")
+hist(poisson.zif.mdl1$model$TARGET - round(poisson.zif.mdl1$fitted.values,0), xlab = 'residuals',main = "histogram of residuals- ZIP",col = "black")
+
+```
+
+### 5.2.2 ZIP model's surprising result
+
+The logistic component of the ZIP model shows that STARS is not a statistically significant contributor. However randomforest approach tells a different story. Also figure 14 shows that the residuals of the model increases as the TARGET value increases. In the next section we will attempt to verify this by modeling using the Logistic Hurdle model.
+
+
+### 5.2.3 Logistic Hurdle model to verify ZIP
+
+The same input to the model as provided in the ZIP model is supplied to the logistic regression. STAR is used as a predictor to predict when NO cases were sold. It is seen that STARS are good predictor of no sale. And most of the imputed data for stars was associated with TARGET = 0. The imputation has no effect on STARS being a good predictor. Here missing data itself is a signal more so than a noise.
+
+Figure 15 shows the ROC curve of of logictic regression of both the training (black) and test data (red). The lines are on top of each other and both have the same AUC of 95%. 
+
+LabelAppeal and STARS are used for predicting the counts in poisson model.
+
+
+```{r,fig.cap = "ROC curve for No sale prediction"}
+tst <- glm(TARGET0 ~ STARS,family = binomial(link = "logit"), data = train,subset = !is.na(train$STARS) )
+summary(tst)
+drop1(tst,test = "Chisq")
+rocCurve.train.logis <- pROC::roc(response = train[!is.na(train$STARS),"TARGET0"], predictor = tst$fitted.values)
+rocCurve.test.logis <- pROC::roc(response = test[!is.na(train$STARS),"TARGET0"],predictor = predict(tst,newdata = test[!is.na(test$STARS),],type = "response"))
+
+plot(rocCurve.train.logis, asp = NA, legacy.axes = T)
+plot(rocCurve.test.logis, legacy.axes = T, asp = NA, add = T, col = "red")
+legend(0.2,0.6,paste("AUC = ",round(pROC::auc(rocCurve.train.logis),2)))
+
+```
+
+
+
+```{r, fig.cap="Verify ZIP with Logistic Hurdle model"}
+
+poisson.hurdle.mdl1 <- glm(TARGET ~ LabelAppeal + STARS, family = poisson(link = "log"), data = train[ train$TARGET0 == 0 & !is.na(train$STARS),])
+summary(poisson.hurdle.mdl1)
+drop1(poisson.hurdle.mdl1, test = "Chisq")
+probsale <- predict(tst,newdata = train[ train$TARGET0 < 1 & !is.na(train$STARS),],type = "response")
+predictedcount <- (1-probsale)*poisson.hurdle.mdl1$fitted.values
+# plot(tst$fitted.values)
+# plot(poisson.mdl2$fitted.values)
+# plot(poisson.zif.mdl1$residuals)
+#plot(train[train$TARGET0 < 1 & !is.na(train$STARS),2],train[ train$TARGET0 < 1 & !is.na(train$STARS),2]-round(predictedcount,0))
+
+predictedCount2 <- (1 -predict(tst,newdata = train,type = "response") ) * predict(poisson.hurdle.mdl1, newdata = train, type = "response")
+par(mfrow = c(1,2))
+plot(train$TARGET,train$TARGET - round(predictedCount2,0), xlab = "TARGET", ylab = "Residuals (rounded)")
+hist(train$TARGET - round(predictedCount2,0), xlab = "Residuals (rounded)",col = "black")
+
+test.PredictedCount <- (1 -predict(tst,newdata = test,type = "response") ) * predict(poisson.hurdle.mdl1, newdata = test, type = "response")
+MAE.zif.mdl1 <- mean(abs(test$TARGET - round(test.PredictedCount,0)),na.rm = T)
+glance.poisson.zif.mdl1 <- data.frame(LogLik = logLik(poisson.zif.mdl1),AIC = AIC(poisson.zif.mdl1), BIC = BIC(poisson.zif.mdl1), MAE = MAE.zif.mdl1)
+knitr::kable(glance.poisson.zif.mdl1, caption = "TARGET ~ LabelAppeal+ STARS|STARS")
+```
+
+It is seen that Figure 16 is identical to figure 14. ZIP model is verified. However I find that the ZIP model's logistic component not very intuitive to interpret. I am hoping that the professor Mickelson would be able to throw more light on this through email response of my question to him on 11/19/2017. 
+
+
+#### 5.2.3.1 Model interpretation
+
+From the drop1 test for logistic regression above, we see that dropping STARS would not increase AIC significantly. This warrants a fit with just LabelAppeal as predictor. Also it is seen that the residuals are skewed right, as the TARGET increases. There is bias in the model. 
+
+The model makes physical sense, one would expect the cases shipped to be low if the rating stars are low. The log odds of cases shipped < 0 increases with increase in STARS. The theory also holds for the poisson component of the regression model.
+
+
+### 5.2.4 ZIP with LabelAppeal for count prediction and STARS for No sale prediction
+
+In this section, dropping of STARS in the poisson model in the above section is explored.
+
+```{r,fig.cap='ZIP TARGET ~ LabelAppeal|STARS'}
+poisson.zif.mdl2 <- pscl::zeroinfl(TARGET ~ LabelAppeal|STARS , data = train )
+summary(poisson.zif.mdl2)
+par(mfrow = c(1,2))
+plot(poisson.zif.mdl2$model$TARGET,poisson.zif.mdl2$model$TARGET - round(poisson.zif.mdl2$fitted.values,0), xlab = "TARGET", ylab = "Residual (rounded)", main = "Residual vs TARGET")
+abline(0,0,lty = 2,col = "red")
+hist(poisson.zif.mdl2$model$TARGET - round(poisson.zif.mdl2$fitted.values,0), xlab = 'residuals',main = "histogram of residuals- ZIP",col = "black")
+
+MAE.zif.mdl2 <- mean(abs(test$TARGET - predict(poisson.zif.mdl2,newdata = test,type = "response")),na.rm = T)
+
+glance.poisson.zif.mdl2 <- data.frame(LogLik = logLik(poisson.zif.mdl2),AIC = AIC(poisson.zif.mdl2), BIC = BIC(poisson.zif.mdl2), MAE = MAE.zif.mdl2)
+knitr::kable(glance.poisson.zif.mdl2, caption = "TARGET ~ LabelAppeal|STARS", digits = 2)
+```
+
+### 5.2.4.1 Model interpretation
+
+The Figure 17 shows that the residuals are left tailed. The model does not predict zeros well. For goodness of fit assessment, a model is fit for samples where counts of sale is greater than 0. The residula deviance over degrees of freedom is less than 1 indicating a good fit.
+
 ```{r}
-poisson.zif.mdl <- pscl::zeroinfl(TARGET ~ STARS + AcidIndex | STARS + LabelAppeal , data = train,family = poisson)
-summary(poisson.zif.mdl)
-plot(poisson.zif.mdl)
+poisson.hurdle.mdl2 <- glm(TARGET ~ LabelAppeal, family = poisson(link = "log"), data = train[ train$TARGET0 == 0 & !is.na(train$STARS),])
+summary(poisson.hurdle.mdl2)
+```
+### 5.2.5 Zero Inflation Poisson Regression summary
+
+Below is the summary for ZIP models. While both models are comparable, and since both needs LabelAppeal and STARS, one could choose the first model with a marginal better performance in MAE.
+
+```{r}
+zip.models <- list(poisson.zif.mdl1,poisson.zif.mdl2)
+zip.equations <- sapply(zip.models,function(x) getequation("TARGET",x,rounding = 2))
+zip.summary <- cbind(model = zip.equations,rbind(glance.poisson.zif.mdl1,glance.poisson.zif.mdl2))
+pander::pandoc.table(zip.summary,style = "grid",digits = 2,caption = "ZIP fit summary - Note model equation before | is for count and after | is prob of No sale")
+```
+
+\pagebreak
+
+## 5.3 Negative Binomial models.
+
+In this section Negative binomial model fits are explored.
+
+
+### 5.3.1 Negative binomial fit with LabelAppeal and STARS as predictors.
+
+Below is the results for the negative binomial fit, the results are identical to that of poisson models with a slight increase in standard errors. 
+
+```{r, fig.cap="Negative binomial model",fig.height=4}
+nb.mdl1 <- MASS::glm.nb(formula = TARGET ~ STARS + LabelAppeal, data = train)
+summary(nb.mdl1)
+par(mfrow= c(2,2))
+plot(nb.mdl1, col = train$TARGET0)
+drop1(nb.mdl1, test = "Chisq")
+nb.predict.mdl1 <- predict(nb.mdl1,newdata = test,type = "response")
+MAE.nb.mdl1 <- mean(abs(test$TARGET - nb.predict.mdl1),na.rm = T)
+glance.nb.mdl1 <- broom::glance(nb.mdl1)
+glance.nb.mdl1$MAE <- MAE.nb.mdl1
+
+knitr::kable(glance.nb.mdl1, caption = "negative binomial model",digits = 2)
+```
+
+#### 5.3.1.1 Model interpretation
+
+The model is identical to poisson model with the same predictors. Label Appeal has a marginal effect compared to STARS.
+
+## 5.4. Zero inflated Negative binomial model
+
+In this section a Zero inflated negative binomial model is fit. 
+
+```{r,fig.cap="Zero inflated negative binomial model",fig.height=4}
+zinb.mdl1 <- pscl::zeroinfl(TARGET ~ LabelAppeal+ STARS|STARS , data = train, dist = "negbin",EM = T)
+summary(zinb.mdl1)
+par(mfrow = c(1,2))
+plot(zinb.mdl1$model$TARGET,round(zinb.mdl1$model$TARGET-zinb.mdl1$fitted.values,0), xlab = "TARGET", ylab = "Rounded residuals")
+hist(round(zinb.mdl1$model$TARGET-zinb.mdl1$fitted.values,0),xlab = "Rounded residuals", main = "Histogram of residuals (rounded)")
 ```
 
 
 
-```{r, eval=F}
-predictors <- colnames(winedata)[unlist(mosaic::dfapply(winedata, is.numeric))][-1]
-poisson.mdl <- glm(TARGET ~ STARS + LabelAppeal + Alcohol, family = poisson(link = 'log'),data = winedata[complete.cases(winedata),])
-summary(poisson.mdl)
-
-poisson.mld.full <- glm(TARGET ~ ., family = poisson(link = 'log'), data = winedata[complete.cases(winedata),predictors])
-summary(poisson.mld.full)
-
-poisson.mdl2 <- glm(TARGET ~ STARS + LabelAppeal, family = poisson(link = 'log'),data = winedata[complete.cases(winedata),])
-
-lmtest::lrtest(poisson.mdl, poisson.mdl2)
-
-plot(poisson.mld.full, col = winedata[complete.cases(winedata),'TARGET'])
-hist(poisson.mdl$fitted.values)
-hist(poisson.mdl2$fitted.values)
-
-nb.mdl <- MASS::glm.nb(TARGET ~ STARS + LabelAppeal + Alcohol,data = winedata[complete.cases(winedata),])
-summary(nb.mdl)
-
-models <- list(M1 = poisson.mdl, M2 = poisson.mdl2, M3 = poisson.mld.full, M4 = nb.mdl)
-sapply(models,glance)
-
-lmtest::lrtest(poisson.mld.full,nb.mdl)
-plot(winedata[complete.cases(winedata),"TARGET"],round(fitted(poisson.mdl),0))
-
-
+```{r}
+predict.zinb.mdl1 <- predict(zinb.mdl1,newdata = test, type = "response")
+MAE.zinb.mdl1 <- mean(abs(test$TARGET - predict.zinb.mdl1),na.rm = T)
+zinb.equation <- getequation("TARGET",zinb.mdl1)
+glance.zinb.mdl1 <- data.frame(LogLik = logLik(zinb.mdl1),AIC = AIC(zinb.mdl1), BIC = BIC(zinb.mdl1), MAE = MAE.zinb.mdl1)
+zinb.summary <- cbind(model = zinb.equation,glance.zinb.mdl1)
 ```
+
+
+#### 5.4.1 Zero inflated negative binomial summary and interpretation
+
+The model is identical to ZIP. The interpretation doesn't change from the ZIP model. The summary is shown in the table below. 
+
+```{r}
+
+pander::pandoc.table(zinb.summary, caption = "Zero inflated negative binomial model", digits = 2, style = "grid")
+```
+
+## 5.5 OLS regression
+
+Lastly, an OLS regression is fit to the data to see how it performs.
+
+```{r,fig.cap="OLS regression diagostics"}
+lm.mdl1 <- lm(TARGET ~ STARS + LabelAppeal, data = train)
+summary(lm.mdl1)
+drop1(lm.mdl1, test = "F")
+par(mfrow = c(2,2))
+plot(lm.mdl1)
+predict.lm.mdl1 <- predict(lm.mdl1, newdata = test)
+MAE.lm.mdl1 <- mean(abs(predict.lm.mdl1 - test$TARGET), na.rm = T)
+glance.lm.mdl1 <- broom::glance(lm.mdl1)
+lm.equation <- getequation("TARGET",lm.mdl1)
+glance.lm.mdl1$MAE <- MAE.lm.mdl1
+summary.lm.mdl1 <- cbind(model = lm.equation, glance.lm.mdl1)
+```
+
+#### 5.5.1 model interpretation and summary
+
+The model surprisingly beats expectation. The coefficients make logical sense and can definitely be a candidate model. The summary table is shown below. The MAE is comprarble to ZIP model above. There are patterns in the residuals (Figure 20), making it not structly meeting OLS assumptions.
+
+```{r}
+pander::pandoc.table(summary.lm.mdl1[,c("model","adj.r.squared","AIC","BIC","MAE")], caption = "OLS regression", style = "grid")
+```
+
+# 6. Model selection
+
+Comparing the model summaries in Section 5, the Zero inflated binomial model:
+
+*`r as.character(zip.summary$model[1])`*
+
+has the minimum MAE. While STARS alone may have been sufficient as predictors as in the model:
+
+*`r as.character(zip.summary$model[2])`*
+
+given that STARS could be missing in new data sets, Label Appeal may be a handy predictor. It is surprising that Alcohol did not come out as an important predictor. It was expected that too high or too high proof (measure of alcohol by volume) may not be a popular choice for customers.
+
+
+# 7. Model deployment
+
+Along with this report an addendum file is provided that contains the R code for model deployment.
+
+# 8. Conclusion
+
+More than any chemical properties Label appeal and review stars are dominant factors in wine sales. Care in label appeal is as much required as in production of wine. It is recommended tha the wine manufacturer market wine with a catchy label to receive as many review stars as possible.   
+
 
