@@ -202,9 +202,9 @@ knitr::kable(glance.poisson.mdl1,digits = 2,caption = "Simple Poisson model stat
 
 #### 5.1.1.1 Model interpretation
 
-It can be seen from the Likelihood ratio test ab0ve, that the slope of LabelAppeal is NOT zero and an unit increase in label appeal increases by `r round(exp(poisson.mdl1.coefs[2,2]),0)`. However the model is not an adequate fit with residual deviance over degrees of freedom being much higher than 1 (in comparison to a saturated model). This is also reflected in the Pseudo R Squared value. 
+It can be seen from the Likelihood ratio test above, that the slope of LabelAppeal is NOT zero and an unit increase in label appeal increases by `r round(exp(poisson.mdl1.coefs[2,2]),0)`. However the model is not an adequate fit with residual deviance over degrees of freedom being much higher than 1 (in comparison to a saturated model). This is also reflected in the Pseudo R Squared value. 
 
-The model does not predict 0s. As can be see from figure 9. 
+The model does not predict 0s. As can be see from figure 9. The model suggest that an unit increase in label appeal increase in sale by `r round(exp(1.08 + 0.255),0)` cases.
 
 ```{r, fig.cap= "Simple poisson regression diagnostics",fig.height=6}
 layout <- matrix(c(1,2,3,4,5,5), ncol = 2, byrow = T)
@@ -241,7 +241,9 @@ plot(train[complete.cases(train[,c(14,16)]),2] , round(poisson.mdl2$fitted.value
 
 #### 5.1.2.1 Model interpretation.
 
-It is seen that the regression model is statistically significant from the Likelihood Ratio Test (LRT) and the regression coefficents are also significant. The MAE is 1.5 which is a marginally higher than the simple model with LabelAppeal as predictor. However the ratio of residual deviance to its degrees of freedom is closer to 1, which can be interpreted as poor model fit to the data. This model also does not fit the zero counts. 
+It is seen that the regression model is statistically significant from the Likelihood Ratio Test (LRT) and the regression coefficents are also significant. The MAE is 1.17 which is a marginally lower than the simple model with LabelAppeal as predictor. However the ratio of residual deviance to its degrees of freedom is greater than 1, which can be interpreted as poor model fit to the data. This model also does not fit the zero counts. 
+
+An unit increase in STARS result in increase of sale by 2 cases, keeping label appeal constant. Increase in unit Label Appeal results in increase of sale by 1 case keeping review stars constant.
 
 ### 5.1.3 Dropping one predcitor from model.
 
@@ -251,14 +253,14 @@ It'll be interesting to see if there is value in dropping one of the regressors 
 drop1(poisson.mdl2, test = "Chisq")
 ```
 
-From LRT, both Label Appeal and STARS appear significant. Dropping Label Appeal (kepping STARS as the only predictor) provides a marginal increase in model fit compared to dropping STARS( keeping Label Appeal as the only predictor). This interpretation is onsistent with the decision tree interpretation in the section 3.1.2. 
+From LRT, both Label Appeal and STARS appear significant. Dropping Label Appeal (kepping STARS as the only predictor) provides a marginal increase in model fit compared to dropping STARS( keeping Label Appeal as the only predictor). This interpretation is consistent with the decision tree interpretation in the section 3.1.2. 
 
-**The LRT test for model comparison may be biased, since the models may have different samples sizes due to missing data. However, LRT can be used as a guidance for model selection. It is examined in the below section just to be sure**
+*The LRT test for model comparison may be biased, since the models may have different samples sizes due to missing data. However, LRT can be used as a guidance for model selection. It is examined in the below section just to be sure*
 
 
 #### 5.1.3.1  Two models - A. STARS as predictor B. LabelAppeal and Interpretation.
 
-Verifying the results in the above section to make sure the drop1 test is providing us the expected results. It can be seen that when the data is kept contant between the models, the results are as expected. The result for model B is different from that of in section 5.1.1, this is because the data used to fit the model is different. Based on AIC and MAE comparison Label Appeal seems to be a better predcitor so far, when using a Poisson model.
+Verifying the results in the above section to make sure the drop1 test is providing us the expected results. It can be seen that when the data is kept contant between the models, the results are as expected. The result for model B is different from that of in section 5.1.1, this is because the data used to fit the model is different. Based on AIC and MAE comparison STARS seems to be a better predcitor so far, when using a Poisson model.
 
 ```{r}
 poisson.mdl3 <- glm(TARGET ~ STARS,family = poisson(link = 'log'), data = train)
@@ -372,7 +374,8 @@ knitr::kable(glance.poisson.mdl7,digits = 2,caption = "Poisson model statistics 
 
 #### 5.1.5.1 Model interpretation 
 
-Droping one predictor and performing the LRT, it can be seen below that removing AcidIndex does NOT move the needle on AIC. 
+Droping one predictor and performing the LRT, it can be seen below that removing AcidIndex does NOT move the needle on AIC by much. 
+
 ```{r}
 drop1(poisson.mdl7, test = "Chisq")
 ```
@@ -462,7 +465,7 @@ hist(train$TARGET - round(predictedCount2,0), xlab = "Residuals (rounded)",col =
 test.PredictedCount <- (1 -predict(tst,newdata = test,type = "response") ) * predict(poisson.hurdle.mdl1, newdata = test, type = "response")
 MAE.zif.mdl1 <- mean(abs(test$TARGET - round(test.PredictedCount,0)),na.rm = T)
 glance.poisson.zif.mdl1 <- data.frame(LogLik = logLik(poisson.zif.mdl1),AIC = AIC(poisson.zif.mdl1), BIC = BIC(poisson.zif.mdl1), MAE = MAE.zif.mdl1)
-knitr::kable(glance.poisson.zif.mdl1, caption = "TARGET ~ LabelAppeal+ STARS|STARS")
+knitr::kable(glance.poisson.zif.mdl1, caption = "TARGET ~ LabelAppeal+ STARS|STARS", digits = 2)
 ```
 
 It is seen that Figure 16 is identical to figure 14. ZIP model is verified. However I find that the ZIP model's logistic component not very intuitive to interpret. I am hoping that the professor Mickelson would be able to throw more light on this through email response of my question to him on 11/19/2017. 
@@ -472,7 +475,7 @@ It is seen that Figure 16 is identical to figure 14. ZIP model is verified. Howe
 
 From the drop1 test for logistic regression above, we see that dropping STARS would not increase AIC significantly. This warrants a fit with just LabelAppeal as predictor. Also it is seen that the residuals are skewed right, as the TARGET increases. There is bias in the model. 
 
-The model makes physical sense, one would expect the cases shipped to be low if the rating stars are low. The log odds of cases shipped < 0 increases with increase in STARS. The theory also holds for the poisson component of the regression model.
+The model makes physical sense, one would expect the cases shipped to below if the rating stars are low. The log odds of cases shipped < 0 increases with increase in STARS. The theory also holds for the poisson component of the regression model.
 
 
 ### 5.2.4 ZIP with LabelAppeal for count prediction and STARS for No sale prediction
@@ -486,7 +489,10 @@ par(mfrow = c(1,2))
 plot(poisson.zif.mdl2$model$TARGET,poisson.zif.mdl2$model$TARGET - round(poisson.zif.mdl2$fitted.values,0), xlab = "TARGET", ylab = "Residual (rounded)", main = "Residual vs TARGET")
 abline(0,0,lty = 2,col = "red")
 hist(poisson.zif.mdl2$model$TARGET - round(poisson.zif.mdl2$fitted.values,0), xlab = 'residuals',main = "histogram of residuals- ZIP",col = "black")
+```
 
+
+```{r}
 MAE.zif.mdl2 <- mean(abs(test$TARGET - predict(poisson.zif.mdl2,newdata = test,type = "response")),na.rm = T)
 
 glance.poisson.zif.mdl2 <- data.frame(LogLik = logLik(poisson.zif.mdl2),AIC = AIC(poisson.zif.mdl2), BIC = BIC(poisson.zif.mdl2), MAE = MAE.zif.mdl2)
@@ -495,24 +501,29 @@ knitr::kable(glance.poisson.zif.mdl2, caption = "TARGET ~ LabelAppeal|STARS", di
 
 ### 5.2.4.1 Model interpretation
 
-The Figure 17 shows that the residuals are left tailed. The model does not predict zeros well. For goodness of fit assessment, a model is fit for samples where counts of sale is greater than 0. The residula deviance over degrees of freedom is less than 1 indicating a good fit.
+The Figure 17 shows that the residuals are left tailed. The model does not predict zeros well. For goodness of fit assessment, a model is fit for samples where counts of sale is greater than 0. The residual deviance over degrees of freedom is less than 1 indicating a good fit (as seen below). 
+
+The model suggests that an unit increase in LabelAppeal results in an increase of sales by 5 cases.
 
 ```{r}
 poisson.hurdle.mdl2 <- glm(TARGET ~ LabelAppeal, family = poisson(link = "log"), data = train[ train$TARGET0 == 0 & !is.na(train$STARS),])
 summary(poisson.hurdle.mdl2)
 ```
+
+\pagebreak
+
 ### 5.2.5 Zero Inflation Poisson Regression summary
 
-Below is the summary for ZIP models. While both models are comparable, and since both needs LabelAppeal and STARS, one could choose the first model with a marginal better performance in MAE.
+Below is the summary for ZIP models. While both models are comparable, and since both needs LabelAppeal and STARS, one could choose the first model with a marginal better performance in MAE. The regression coefficients make theoretical sense. More weightage to Label Appeal than STARS. People are more likely to make a purchase on an impusle of nice looking label or bottle.
 
 ```{r}
 zip.models <- list(poisson.zif.mdl1,poisson.zif.mdl2)
 zip.equations <- sapply(zip.models,function(x) getequation("TARGET",x,rounding = 2))
 zip.summary <- cbind(model = zip.equations,rbind(glance.poisson.zif.mdl1,glance.poisson.zif.mdl2))
-pander::pandoc.table(zip.summary,style = "grid",digits = 2,caption = "ZIP fit summary - Note model equation before | is for count and after | is prob of No sale")
+pander::pandoc.table(zip.summary,style = "grid",digits = 2,caption = "ZIP fit summary")
 ```
 
-\pagebreak
+
 
 ## 5.3 Negative Binomial models.
 
@@ -593,7 +604,7 @@ summary.lm.mdl1 <- cbind(model = lm.equation, glance.lm.mdl1)
 
 #### 5.5.1 model interpretation and summary
 
-The model surprisingly beats expectation. The coefficients make logical sense and can definitely be a candidate model. The summary table is shown below. The MAE is comprarble to ZIP model above. There are patterns in the residuals (Figure 20), making it not structly meeting OLS assumptions.
+The model surprisingly beats expectation. The coefficients make logical sense and can definitely be a candidate model. The summary table is shown below. The MAE is comprarble to ZIP model above. There are patterns in the residuals (Figure 20), making it not strictly meeting OLS assumptions.
 
 ```{r}
 pander::pandoc.table(summary.lm.mdl1[,c("model","adj.r.squared","AIC","BIC","MAE")], caption = "OLS regression", style = "grid")
